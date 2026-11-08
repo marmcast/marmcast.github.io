@@ -269,6 +269,7 @@ th:first-child .ic{margin:0 0 3px}
           <li>Use the name the organisers use, <b>without the year or headline sponsor</b>: “London Marathon”, not “TCS London Marathon 2026”.</li>
           <li>Use the name in its local language if that’s what runners use (“Marathon de Paris”); put English names, sponsor names and old names in <b>Also known as</b>.</li>
           <li>Each distance at an event is its own entry (e.g. the 10K and the Half).</li>
+          <li>If different companies put on a race with the same name at the same place (e.g. two Silverstone 10Ks), fill in <b>Organiser</b> so they stay separate. If one company runs it more than once a year, put that in the name (“Silverstone Winter 10K”).</li>
         </ul>
       </div>
       <div id="addForm"></div>
@@ -364,6 +365,7 @@ function similarity(a,b){
   if(da && db && dice(da,db)<0.5) return Math.min(0.4, Math.max(dice(A,B), contained));
   return Math.max(dice(A,B), contained);
 }
+const orgKey = o => String(o||"").trim().toLowerCase();
 const domainOf = u => { try{ return new URL(u).hostname.replace(/^www\./,""); }catch{ return ""; } };
 function findSimilar(f, excludeId){
   if(!f.name || f.name.trim().length<3) return [];
@@ -373,7 +375,9 @@ function findSimilar(f, excludeId){
     let score=Math.max(...names.map(n=>similarity(f.name,n)));
     let why = score>=0.99 ? "same name" : "similar name";
     if(dom && domainOf(r.website)===dom){ score=Math.max(score,0.95); why="same website"; }
-    const exact = names.some(n=>nameKey(n)===nameKey(f.name)) && r.country===f.country && r.distance===f.distance;
+    const sameName = names.some(n=>nameKey(n)===nameKey(f.name)) && r.country===f.country && r.distance===f.distance;
+    const exact = sameName && orgKey(r.organiser)===orgKey(f.organiser);
+    if(sameName && !exact) why = "same name, different organiser";
     return {r,score,why,exact};
   }).filter(x=>x.exact || x.score>=0.6).sort((a,b)=>(b.exact-a.exact)||(b.score-a.score)).slice(0,5);
 }
@@ -392,10 +396,10 @@ function status(msg){ const b=$("status"); b.hidden=!msg; b.textContent=msg||"";
 const uid = () => S.session?.user?.id || null;
 const place = r => `${esc(r.city)}, ${esc(countryName(r.country))}`;
 const raceById = id => S.races.find(r=>r.id===id);
-const raceLabel = r => r ? `${r.name} (${r.distance}), ${r.city}, ${countryName(r.country)}` : "Unknown race";
+const raceLabel = r => r ? `${r.name} (${r.distance}), ${r.city}, ${countryName(r.country)}${r.organiser?` · ${r.organiser}`:""}` : "Unknown race";
 function raceMatches(r,q){
   if(!q) return true;
-  const hay=[r.name,...(r.aliases||[]),r.city,countryName(r.country),r.country].join(" ");
+  const hay=[r.name,...(r.aliases||[]),r.city,countryName(r.country),r.country,r.organiser||""].join(" ");
   return nameKey(hay).includes(nameKey(q)) || [r.name,...(r.aliases||[])].some(n=>similarity(q,n)>=0.7);
 }
 function confirmTap(b, label){ if(b.dataset.confirm==="1") return true; b.dataset.confirm="1"; b.dataset.orig=b.textContent; b.textContent=label||"Tap again to confirm"; setTimeout(()=>{ if(b.isConnected){ b.dataset.confirm=""; b.textContent=b.dataset.orig; } },4000); return false; }
@@ -417,6 +421,7 @@ function raceFormHtml(p, f={}, opts={}){
     <div><label>Town / city</label><input id="${p}City" maxlength="80" value="${esc(f.city||"")}"></div>
     <div><label>Country</label><select id="${p}Country">${countryOptions(f.country||"")}</select></div>
     ${opts.terrain?`<div><label>Terrain</label><select id="${p}Terrain">${["Road","Trail","Mixed","Fell"].map(t=>`<option${t===f.terrain?" selected":""}>${t}</option>`).join("")}</select></div>`:""}
+    <div><label>Organiser <span class="muted">(optional, e.g. RunThrough)</span></label><input id="${p}Org" maxlength="80" value="${esc(f.organiser||"")}"></div>
     <div><label>Official website <span class="muted">(optional, helps spot duplicates)</span></label><input id="${p}Web" value="${esc(f.website||"")}" placeholder="https://"></div>
   </div>
   ${opts.aliases?`<label>Also known as <span class="muted">(sponsor names, other languages, old names; comma separated)</span></label><input id="${p}Alias" value="${esc((f.aliases||[]).join(", "))}">`:""}
@@ -425,7 +430,7 @@ function raceFormHtml(p, f={}, opts={}){
 }
 function readRaceForm(p){
   const v=id=>$(p+id)?.value.trim()||"";
-  return { name:v("Name"), distance:v("Dist"), city:v("City"), country:v("Country"), terrain:v("Terrain")||"Road",
+  return { organiser:v("Org")||null, name:v("Name"), distance:v("Dist"), city:v("City"), country:v("Country"), terrain:v("Terrain")||"Road",
     website:safeUrl(v("Web")), aliases: $(p+"Alias") ? v("Alias").split(",").map(x=>x.trim()).filter(Boolean).slice(0,20) : undefined, note:v("Note")||null };
 }
 function bindSimilar(p, excludeId, onPick){
@@ -434,11 +439,11 @@ function bindSimilar(p, excludeId, onPick){
     if(!hits.length){ box.innerHTML=""; return; }
     const block=hits.some(h=>h.exact);
     box.innerHTML=`<div class="similar ${block?"block":""}"><b>${block?"This race already exists:":"Is it one of these?"}</b>
-      ${hits.map(h=>`<div>• ${esc(h.r.name)} <span class="muted">(${esc(h.r.distance)}, ${place(h.r)}${h.exact?" · same name, country & distance":` · ${h.why}`})</span>
+      ${hits.map(h=>`<div>• ${esc(h.r.name)} <span class="muted">(${esc(h.r.distance)}, ${place(h.r)}${h.r.organiser?` · ${esc(h.r.organiser)}`:""}${h.exact?" · same name, place, distance & organiser":` · ${h.why}`})</span>
       ${onPick?` <button class="linkbtn" data-pick="${esc(h.r.id)}">${onPick.label}</button>`:""}</div>`).join("")}</div>`;
     if(onPick) box.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>onPick.fn(b.dataset.pick));
   };
-  ["Name","City","Country","Dist","Web"].forEach(id=>$(p+id)?.addEventListener("input",run));
+  ["Name","City","Country","Dist","Web","Org"].forEach(id=>$(p+id)?.addEventListener("input",run));
   run();
 }
 function validRace(f){
@@ -449,7 +454,7 @@ function validRace(f){
   return null;
 }
 function dbRaceError(error){
-  if(error.code==="23505") return "A race with that name, country and distance already exists";
+  if(error.code==="23505") return "A race with that name, country, distance and organiser already exists";
   return error.message;
 }
 
@@ -513,7 +518,7 @@ function renderTable(){
   if(!S.races.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${S.sb?"No races yet.":"Loading…"}</td></tr>`;
   else if(!rows.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${(q||dist||yr||ctry) ? "No scored races match those filters." : "No scores yet. Be the first: tap <b>Submit a score</b>."}</td></tr>`;
   else tb.innerHTML = rows.map(({r,a})=>`<tr data-id="${esc(r.id)}">
-      <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}</div></td>
+      <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · ${esc(r.organiser)}`:""}</div></td>
       ${CATS.map(c=>`<td><span class="sc" style="${heat(a.cats[c.k])}">${fmt(a.cats[c.k])}</span></td>`).join("")}
       <td>${a.n||"–"}</td>
       <td><span class="sc" style="font-size:14px;${heat(a.overall==null?null:a.overall/CATS.length)}">${fmtT(a.overall)}</span></td></tr>`).join("");
@@ -547,7 +552,7 @@ function openRace(id){
   const list = included().filter(o=>o.race_id===id).sort((a,b)=>(b.year-a.year)||(new Date(b.created_at)-new Date(a.created_at)));
   const a=aggregate(list), years=[...new Set(list.map(o=>o.year))].sort((x,y)=>y-x), web=safeUrl(r.website);
   openModal(`<h2>${esc(r.name)}</h2>
-    <div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${web?` · <a href="${esc(web)}" target="_blank" rel="noopener">Website</a>`:""}</div>
+    <div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · Organised by ${esc(r.organiser)}`:""}${web?` · <a href="${esc(web)}" target="_blank" rel="noopener">Website</a>`:""}</div>
     ${r.aliases?.length?`<div class="muted">Also known as: ${esc(r.aliases.join(", "))}</div>`:""}
     <div class="card" style="margin-top:12px">
       <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall==null?null:a.overall/CATS.length)}">${fmtT(a.overall)}</span>
@@ -620,10 +625,10 @@ $("sBtn").onclick = async ()=>{
     let raceId=v.raceId||null, requestId=null;
     if(v.nr){
       if(S.isAdmin){ // admins just create the race
-        const {data,error}=await S.sb.from("races").insert({name:v.nr.name, city:v.nr.city, country:v.nr.country, distance:v.nr.distance, website:v.nr.website}).select("id").single();
+        const {data,error}=await S.sb.from("races").insert({name:v.nr.name, city:v.nr.city, country:v.nr.country, distance:v.nr.distance, website:v.nr.website, organiser:v.nr.organiser}).select("id").single();
         if(error) throw new Error(dbRaceError(error)); raceId=data.id;
       } else {
-        const {data,error}=await S.sb.from("race_requests").insert({name:v.nr.name, city:v.nr.city, country:v.nr.country, distance:v.nr.distance, website:v.nr.website, user_id:uid()}).select("id").single();
+        const {data,error}=await S.sb.from("race_requests").insert({name:v.nr.name, city:v.nr.city, country:v.nr.country, distance:v.nr.distance, website:v.nr.website, organiser:v.nr.organiser, user_id:uid()}).select("id").single();
         if(error) throw error; requestId=data.id;
       }
     }
@@ -664,7 +669,7 @@ function renderQueue(){
     if(off.n){ const far=CATS.filter(c=>c.k!=="performance" && off.cats[c.k]!=null && Math.abs(p[c.k]-off.cats[c.k])>=2); if(far.length>=2) warns.push(`2+ points from official average on: ${far.map(c=>c.s).join(", ")}`); }
     else warns.push("No official scores yet to compare against");
     return `<div class="item" data-id="${esc(p.id)}">
-      <div class="flex"><b>${esc(r?raceLabel(r):(rq?`${rq.name} (${rq.distance}), ${rq.city}, ${countryName(rq.country)}`:"Unknown race"))}</b>${rq?`<span class="pill pending">New race</span>`:""}<span class="muted">${p.year} · ${esc(p.display_name||"Runner")}</span></div>
+      <div class="flex"><b>${esc(r?raceLabel(r):(rq?raceLabel(rq):"Unknown race"))}</b>${rq?`<span class="pill pending">New race</span>`:""}<span class="muted">${p.year} · ${esc(p.display_name||"Runner")}</span></div>
       ${rq?`<div class="similar">This score came with a new race. <button class="linkbtn" data-goraces>Add or link the race in Manage races</button> first. The score then comes back here to approve.</div>`:""}
       ${CATS.map(c=>`<div class="muted" style="margin:2px 0">${c.s}: <b>${p[c.k]}</b>${p[c.k+"_note"]?` · ${esc(p[c.k+"_note"])}`:""}</div>`).join("")}
       <ul class="checks">${warns.length?warns.map(w=>`<li><span class="i wa">!</span>${esc(w)}</li>`).join(""):`<li><span class="i ok">✓</span>No warnings</li>`}</ul>
@@ -692,7 +697,7 @@ $("rBtn").onclick=async()=>{
   const f=readRaceForm("a"), err=validRace(f); if(err) return toast(err);
   if(findSimilar(f).some(h=>h.exact)) return toast("That race already exists");
   $("rBtn").disabled=true;
-  const {data,error}=await S.sb.from("races").insert({name:f.name, city:f.city, country:f.country, distance:f.distance, terrain:f.terrain, website:f.website, aliases:f.aliases||[]}).select("id").single();
+  const {data,error}=await S.sb.from("races").insert({name:f.name, city:f.city, country:f.country, distance:f.distance, terrain:f.terrain, website:f.website, organiser:f.organiser, aliases:f.aliases||[]}).select("id").single();
   $("rBtn").disabled=false;
   if(error) return toast(dbRaceError(error));
   if(S.prefillRequest){
@@ -709,7 +714,7 @@ function renderRequests(){
   $("requestList").innerHTML = S.requests.map(q=>{
     const hits=findSimilar(q), n=S.queue.filter(x=>x.request_id===q.id).length;
     const opts=[...hits.map(h=>h.r), ...S.races.filter(r=>!hits.some(h=>h.r.id===r.id)).sort((a,b)=>a.name.localeCompare(b.name))];
-    return `<div class="item" data-id="${esc(q.id)}"><b>${esc(q.name)}</b> <span class="muted">(${esc(q.distance)}, ${place(q)})${n?` · ${n} score${n===1?"":"s"} waiting`:""}</span>
+    return `<div class="item" data-id="${esc(q.id)}"><b>${esc(q.name)}</b> <span class="muted">(${esc(q.distance)}, ${place(q)}${q.organiser?` · ${esc(q.organiser)}`:""})${n?` · ${n} score${n===1?"":"s"} waiting`:""}</span>
       ${safeUrl(q.website)?`<div class="muted"><a href="${esc(safeUrl(q.website))}" target="_blank" rel="noopener">${esc(domainOf(q.website))}</a></div>`:""}
       ${q.note?`<div class="muted">“${esc(q.note)}”</div>`:""}
       ${hits.length?`<div class="similar">Possible existing match: ${hits.map(h=>`${esc(h.r.name)} (${esc(h.r.distance)}, ${place(h.r)})`).join("; ")}</div>`:""}
@@ -766,7 +771,7 @@ function editRace(id){
   $("eGo").onclick=async()=>{
     const f=readRaceForm("e"), err=validRace(f); if(err) return toast(err);
     $("eGo").disabled=true;
-    const {error}=await S.sb.from("races").update({name:f.name, city:f.city, country:f.country, distance:f.distance, terrain:f.terrain, website:f.website, aliases:f.aliases||[]}).eq("id",id);
+    const {error}=await S.sb.from("races").update({name:f.name, city:f.city, country:f.country, distance:f.distance, terrain:f.terrain, website:f.website, organiser:f.organiser, aliases:f.aliases||[]}).eq("id",id);
     $("eGo").disabled=false;
     if(error) return toast(dbRaceError(error));
     closeModal(); toast("Race updated"); loadAll();
