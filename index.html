@@ -496,7 +496,8 @@ function renderTable(){
   const q=$("q").value.trim(), dist=$("fDist").value, yr=$("fYear").value, ctry=$("fCountry").value;
   const scores = included().filter(o=>!yr || String(o.year)===yr);
   const rows = S.races.filter(r=>raceMatches(r,q) && (!dist || r.distance===dist) && (!ctry || r.country===ctry))
-    .map(r=>({r, a:aggregate(scores.filter(o=>o.race_id===r.id))}));
+    .map(r=>({r, a:aggregate(scores.filter(o=>o.race_id===r.id))}))
+    .filter(x=>x.a.n>0);   // only races that have scores in this view
   const {k,dir}=S.sort;
   const val=(a,kk)=> kk==="overall"?a.overall : kk==="n"?a.n : a.cats[kk];
   rows.sort((x,y)=>{
@@ -510,7 +511,7 @@ function renderTable(){
   $("tbl").tHead.innerHTML = `<tr><th data-k="name">${icon("race")}Race${ar("name")}</th>${CATS.map(c=>`<th data-k="${c.k}">${icon(c.k)}${c.s}${ar(c.k)}</th>`).join("")}<th data-k="n">${icon("count")}Runners${ar("n")}</th><th data-k="overall">${icon("overall")}Overall <span style="font-weight:400;opacity:.7">/${MAXT}</span>${ar("overall")}</th></tr>`;
   const tb=$("tbl").tBodies[0], span=CATS.length+3;
   if(!S.races.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${S.sb?"No races yet.":"Loading…"}</td></tr>`;
-  else if(!rows.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">No races match those filters.</td></tr>`;
+  else if(!rows.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${(q||dist||yr||ctry) ? "No scored races match those filters." : "No scores yet. Be the first: tap <b>Submit a score</b>."}</td></tr>`;
   else tb.innerHTML = rows.map(({r,a})=>`<tr data-id="${esc(r.id)}">
       <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}</div></td>
       ${CATS.map(c=>`<td><span class="sc" style="${heat(a.cats[c.k])}">${fmt(a.cats[c.k])}</span></td>`).join("")}
@@ -837,7 +838,8 @@ function renderAs(){
 /* ---------- render ---------- */
 function render(){
   renderRacePicker();
-  const present=[...new Set(S.races.map(r=>r.country))].map(c=>({c,n:countryName(c)})).sort((a,b)=>a.n.localeCompare(b.n));
+  const scoredIds=new Set(S.scores.map(o=>o.race_id));
+  const present=[...new Set(S.races.filter(r=>scoredIds.has(r.id)).map(r=>r.country))].map(c=>({c,n:countryName(c)})).sort((a,b)=>a.n.localeCompare(b.n));
   const curC=$("fCountry").value;
   $("fCountry").innerHTML=`<option value="">All countries</option>`+present.map(x=>`<option value="${x.c}">${esc(x.n)}</option>`).join("");
   if(present.some(x=>x.c===curC)) $("fCountry").value=curC;
