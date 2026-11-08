@@ -1,0 +1,23 @@
+# Emails a readable summary of the last 7 days every Friday around noon, privately via Gmail.
+# Needs secrets: SUPABASE_URL, SUPABASE_SECRET_KEY, GMAIL_ADDRESS, GMAIL_APP_PASSWORD (see README).
+name: Weekly summary email
+
+on:
+  schedule:
+    - cron: "47 11 * * 5"   # Fridays 11:47 UTC (about noon)
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and send the summary
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          SUMMARY_TO: ${{ secrets.SUMMARY_TO }}
+          SITE: https://${{ github.repository_owner }}.github.io
+        run: python3 .github/scripts/weekly_digest.py
