@@ -1,110 +1,169 @@
-"""MARMCast Race Ladder: weekly summary email.
+Claude
+The email reads well. Let me check the database queries against a real PostgREST server, the same engine Supabase uses for this, since I can’t reach your live project from here.
 
-Run by .github/workflows/weekly-summary.yml every Friday. It reads the last 7 days of
-activity from Supabase and emails a readable summary to you through Gmail.
+There are now three ways to keep track of new entries, all free.
 
-Secrets it needs (GitHub > Settings > Secrets and variables > Actions):
-  SUPABASE_URL          your project URL
-  SUPABASE_SECRET_KEY   Supabase "secret" key (sb_secret_...). Only ever stored here, never on the website.
-  GMAIL_ADDRESS         the Gmail address that sends (and receives) the summary
-  GMAIL_APP_PASSWORD    a Gmail app password (not your normal password)
-Optional:
-  SUMMARY_TO            send to a different address (comma-separate several)
-Nothing from the database is printed to the log (the log is public on a public repository).
-"""
-import os, sys, json, ssl, smtplib, urllib.request, urllib.parse, html
-from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
+1. On the site, when you sign in
 
-CATS = [("thunderboxes", "Thunderboxes"), ("scenery", "Scenery"), ("swag", "Swag Bag"), ("performance", "Performance")]
-DAYS = 7
+Summary box: a box at the top says what’s happened since your last visit: how many scores are waiting (and how many are new), race suggestions, and scores published. Each line has a link straight to the right tab.
+New badges: new items get a green New badge in the review queue, race suggestions and results.
+Recent approvals: in Manage results, newest first, you can filter to Since my last visit, the last 7 or 30 days, or all time. Each entry shows when it was published, whether you or another admin approved it, its total, and each category score.
+“Last visit” is remembered separately on each device and browser.
 
-def fetch(path, params):
-    url = os.environ["SUPABASE_URL"].rstrip("/").removesuffix("/rest/v1") + "/rest/v1/" + path + "?" + urllib.parse.urlencode(params, safe="(),.*:")
-    req = urllib.request.Request(url, headers={"apikey": os.environ["SUPABASE_SECRET_KEY"], "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        sys.exit(f"Supabase refused the request for {path}: HTTP {e.code}. Check SUPABASE_URL and SUPABASE_SECRET_KEY.")
+2. Daily alert: every morning a GitHub job checks for anything waiting. If something is, it opens a short issue on your repository, e.g. “MARMCast: 2 scores to review, 1 race suggestion”, and GitHub emails it to you. Quiet days send nothing. Because issues are public, it only ever contains counts.
 
-def esc(x): return html.escape(str(x if x is not None else ""))
+3. Weekly summary email: every Monday morning you get a private email from your own Gmail. It covers everything waiting for review and everything published that week, with each runner’s scores and notes, plus new races and race suggestions. weekly-summary-preview.png shows what it looks like with sample data.
 
-def race_label(r):
-    if not r: return "Unknown race"
-    bits = [r.get("distance"), r.get("city"), r.get("country")]
-    s = f'{esc(r.get("name"))} <span style="color:#666">({", ".join(esc(b) for b in bits if b)}'
-    if r.get("organiser"): s += f' · {esc(r["organiser"])}'
-    return s + ")</span>"
+I tested the summary box and results filter in a browser. I also tested the weekly email’s database queries and the daily count against a local copy of the database and PostgREST, the engine Supabase uses to serve data, and the public still can’t see unreviewed scores. Neither job prints any scores or notes in its logs, which are public on a public repository.
 
-def when(ts):
-    try: return datetime.fromisoformat(ts.replace("Z", "+00:00")).strftime("%a %d %b")
-    except Exception: return ""
+To set it up, using the new marmcast-race-ladder.zip:
 
-def score_card(o):
-    race = o.get("races") or o.get("race_requests")
-    total = sum(o.get(k) or 0 for k, _ in CATS)
-    who = o.get("display_name") or ("Admin" if o.get("source") == "admin" else "Runner")
-    kind = "Official" if o.get("source") == "admin" else ("Public (entered by admin)" if o.get("on_behalf") else "Public")
-    newrace = ' <span style="background:#fef3c7;color:#92400e;border-radius:10px;padding:1px 7px;font-size:12px">new race</span>' if not o.get("races") and o.get("race_requests") else ""
-    rows = "".join(
-        f'<tr><td style="padding:3px 10px 3px 0;color:#444">{label}</td><td style="padding:3px 10px 3px 0;font-weight:bold">{esc(o.get(k))}</td>'
-        f'<td style="padding:3px 0;color:#555;font-style:italic">{esc(o.get(k + "_note") or "")}</td></tr>'
-        for k, label in CATS)
-    return f'''<div style="border:1px solid #ddd;border-left:4px solid #5ddb56;border-radius:8px;padding:10px 12px;margin:10px 0">
-  <div style="font-weight:bold">{race_label(race)}{newrace}</div>
-  <div style="color:#555;font-size:13px;margin:2px 0 6px">{esc(o.get("year"))} · {esc(who)} · {kind} · added {when(o.get("created_at"))} · <b>overall {total}/20</b></div>
-  <table style="border-collapse:collapse;font-size:14px">{rows}</table></div>'''
+In Supabase, run the new supabase/schema.sql. It adds the counts function and keeps your data.
+On GitHub, upload the new index.html.
+Add the three new files, keeping their folders: .github/workflows/daily-alert.yml, .github/workflows/weekly-summary.yml and .github/scripts/weekly_digest.py.
+For the daily alert, click Watch → All Activity on your repository.
+For the weekly email, add three secrets: your Supabase secret key, your Gmail address, and a Gmail app password. That needs 2-Step Verification on your Google account. The README has each step.
+The secret key can read everything in the database, so it only ever goes in GitHub’s secrets, never in config.js. Run each job once from the Actions tab to check it works; the first email may land in spam.
 
-def section(title, items, empty):
-    body = "".join(items) if items else f'<p style="color:#777">{empty}</p>'
-    return f'<h2 style="font-size:17px;margin:22px 0 4px;border-bottom:2px solid #5ddb56;padding-bottom:4px">{title} ({len(items)})</h2>{body}'
+The Claude-hosted prototype doesn’t have these admin extras. They’re only on the live site.
 
-def build(scores, races, requests, site, since):
-    pending = [o for o in scores if o["status"] == "pending"]
-    published = [o for o in scores if o["status"] == "approved"]
-    rejected = [o for o in scores if o["status"] == "rejected"]
-    race_items = [f'<li>{race_label(r)} · added {when(r.get("created_at"))}</li>' for r in races]
-    req_items = [f'<li>{race_label(q)} · suggested {when(q.get("created_at"))}</li>' for q in requests]
-    parts = [
-        f'<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto;color:#111">',
-        f'<div style="background:#000;color:#fff;padding:14px 16px;border-radius:10px"><div style="font-size:20px;font-weight:900">MARMCAST <span style="color:#5ddb56">RACE LADDER</span></div>'
-        f'<div style="color:#ccc;font-size:13px">Weekly summary: {since:%a %d %b} to {datetime.now(timezone.utc):%a %d %b %Y}</div></div>',
-        f'<p style="font-size:15px">This week: <b>{len(pending)}</b> waiting for review · <b>{len(published)}</b> published · '
-        f'<b>{len(races)}</b> new race(s) · <b>{len(requests)}</b> race suggestion(s) waiting.</p>',
-        section("Waiting for review", [score_card(o) for o in pending], "Nothing waiting."),
-        section("Published this week", [score_card(o) for o in published], "Nothing published this week."),
-    ]
-    if rejected: parts.append(section("Rejected this week", [score_card(o) for o in rejected], ""))
-    parts.append(f'<h2 style="font-size:17px;margin:22px 0 4px;border-bottom:2px solid #5ddb56;padding-bottom:4px">New races added ({len(races)})</h2>'
-                 + (f'<ul>{"".join(race_items)}</ul>' if race_items else '<p style="color:#777">None.</p>'))
-    parts.append(f'<h2 style="font-size:17px;margin:22px 0 4px;border-bottom:2px solid #5ddb56;padding-bottom:4px">Race suggestions waiting ({len(requests)})</h2>'
-                 + (f'<ul>{"".join(req_items)}</ul>' if req_items else '<p style="color:#777">None.</p>'))
-    parts.append(f'<p style="margin-top:24px"><a href="{esc(site)}" style="background:#5ddb56;color:#061006;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">Open the Race Ladder</a></p>'
-                 '<p style="color:#888;font-size:12px">Sent automatically every Friday by your GitHub repository.</p></div>')
-    subject = f"MARMCast weekly: {len(pending)} to review, {len(published)} published, {len(races)} new race(s)"
-    return subject, "".join(parts)
+weekly-summary-preview.png
+admin-summary-preview.png
+Marmcast race ladder
+ZIP
+Change the weekly email to Friday at about noon UTC
 
-def main():
-    since = datetime.now(timezone.utc) - timedelta(days=DAYS)
-    iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
-    sel = "*,races(name,city,country,distance,organiser),race_requests(name,city,country,distance,organiser)"
-    scores = fetch("scores", {"select": sel, "or": f'(created_at.gte."{iso}",reviewed_at.gte."{iso}")', "order": "created_at.desc"})
-    races = fetch("races", {"select": "name,city,country,distance,organiser,created_at", "created_at": f"gte.{iso}", "order": "created_at.desc"})
-    requests = fetch("race_requests", {"select": "name,city,country,distance,organiser,created_at", "order": "created_at.desc"})
-    subject, body = build(scores, races, requests, os.environ.get("SITE", ""), since)
+Shared a file, ran a command
+The weekly summary now goes out on Fridays at 11:47 UTC. That’s just before noon UK time in winter, or just before 1pm in summer. It still covers the previous 7 days, so a Friday email runs from last Friday to this one.
 
-    if os.environ.get("DRY_RUN"):
-        open("weekly_summary_preview.html", "w").write(body); print("Dry run: wrote weekly_summary_preview.html"); return
-    sender = os.environ["GMAIL_ADDRESS"]
-    to = [a.strip() for a in (os.environ.get("SUMMARY_TO") or sender).split(",") if a.strip()]
-    msg = EmailMessage(); msg["Subject"] = subject; msg["From"] = f"MARMCast Race Ladder <{sender}>"; msg["To"] = ", ".join(to)
-    msg.set_content("Your weekly MARMCast Race Ladder summary. Open this email in an app that shows HTML.")
-    msg.add_alternative(body, subtype="html")
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as s:
-        s.login(sender, os.environ["GMAIL_APP_PASSWORD"].replace(" ", ""))
-        s.send_message(msg)
-    print(f"Weekly summary sent to {len(to)} address(es).")
+I set it slightly before the hour on purpose. GitHub’s scheduled jobs are busiest on the hour and can run late then, so this way it should arrive close to noon.
 
-if __name__ == "__main__":
-    main()
+Two files changed: .github/workflows/weekly-summary.yml has the new schedule, and .github/scripts/weekly_digest.py now says “every Friday” at the bottom of the email. They’re in marmcast-race-ladder.zip.
+
+If you’ve already uploaded them to GitHub, replace both. If not, upload these versions when you set up the weekly email.
+
+Marmcast race ladder
+ZIP
+can't see settings - notifications in github
+
+Locating the GitHub notification settings path.
+Locating the GitHub notification settings path.
+That page is in your account settings, not the repository’s Settings tab, which is probably why it’s not showing up.
+
+Quickest: go straight to https://github.com/settings/notifications
+
+Or by menu, in a browser:
+
+Click your profile picture in the top-right corner of any GitHub page. Not the repository’s Settings tab.
+Choose Settings.
+In the left sidebar, click Notifications. On a phone the sidebar may be tucked behind a menu button at the top of the page.
+Once you’re there:
+
+At the top, check Default notifications email is the address you want the alerts sent to.
+Under Subscriptions → Watching, make sure Email is ticked. GitHub may call it “Notify me: on GitHub, Email”.
+Under Subscriptions → Participating, @mentions and custom, ticking Email is a good idea too.
+Then watch the repository:
+
+Open github.com/marmcast/marmcast.github.io.
+Click Watch near the top right, next to Fork and Star. On a phone it may show as an eye icon.
+Choose All Activity.
+The GitHub phone app only controls push notifications, not emails, so use a browser for this. On a phone, Chrome or Safari’s “Desktop site” option makes the full menus appear.
+
+To test it, go to Actions → Daily review alert → Run workflow. It only sends an email if something is waiting for review, so submit a test public score first, using preview mode.
+
+Run python3 .github/scripts/weekly_digest.py
+python3: can't open file '/home/runner/work/marmcast.github.io/marmcast.github.io/.github/scripts/weekly_digest.py': [Errno 2] No such file or directory
+Error: Process completed with exit code 2.
+
+Weighing two ways to fix the script's location
+GitHub ran the job but couldn’t find the script, so weekly_digest.py isn’t where the job expects it. It needs to sit in a scripts folder inside the .github folder. Usually it has ended up somewhere else, for example at the top level next to index.html or inside the workflows folder, or the name differs slightly, such as weekly_digest (1).py or .txt on the end.
+
+Check where it is: on the repository’s Code tab, open the .github folder. You should see two folders, workflows and scripts, with weekly_digest.py inside scripts.
+
+To put it in the right place:
+
+Add file → Create new file.
+In the name box, type exactly .github/scripts/weekly_digest.py. Each / turns into a folder as you type.
+Open weekly_digest.py from the zip in Notepad or TextEdit, copy everything, and paste it into the big box.
+Click Commit changes.
+If a copy exists in the wrong place, open it and delete it: use the ⋯ menu → Delete file, then commit.
+Then rerun Actions → Weekly summary email → Run workflow.
+
+I’ll also make the job find the script wherever it sits in the repository, so this can’t trip it up again.
+
+Shared 2 files, ran a command
+The new weekly-summary.yml searches the whole repository for the script, including copies with a “(1)” added to the name, and the log says which file it used. If the script is missing altogether, the log now says so in plain English.
+
+The quickest fix right now is to replace the workflow file:
+
+On GitHub, open .github/workflows/weekly-summary.yml and click the pencil icon.
+Select everything in the edit box and delete it.
+Paste in the full contents of the new weekly-summary.yml, then click Commit changes.
+Run it again from Actions → Weekly summary email → Run workflow.
+If it still fails:
+
+“Can’t find weekly_digest.py”: the script isn’t in the repository at all. Add it as shown in the steps above.
+Anything about Supabase or Gmail: that’s the next setup step, the secrets. Tell me what the message says.
+Weekly summary
+YML
+Marmcast race ladder
+ZIP
+send
+Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+
+Checking a deprecation warning in the workflow annotation.
+Checking a deprecation warning in the workflow annotation.
+That’s only a warning, not an error. GitHub is phasing out an older version of the tool that downloads your repository files at the start of the job. It ran on the newer version automatically, so it doesn’t stop anything working.
+
+Did it work? If the run has a green tick, it did, and your summary email should arrive within a minute or two. Check spam the first time. If the run has a red cross, the real error is further down: click into the run, open the Build and send the summary step, and tell me what it says.
+
+To get rid of the warning, I’ve switched the file to the newer version of that tool:
+
+Shared a file, ran a command
+To stop the warning, there’s a one-word edit on GitHub. You don’t need the whole file again:
+
+Open .github/workflows/weekly-summary.yml and click the pencil icon.
+Find actions/checkout@v4 and change v4 to v5.
+Click Commit changes.
+The updated weekly-summary.yml is attached if you’d rather paste the whole thing, and it’s in the zip too. The other two jobs, keep-awake and the daily alert, don’t use that tool, so they won’t show the warning.
+
+Weekly summary
+YML
+How is Claude doing this session?
+
+
+
+Claude is AI and can make mistakes.
+Weekly summary · YML
+# Emails a readable summary of the last 7 days every Friday around noon, privately via Gmail.
+# Needs secrets: SUPABASE_URL, SUPABASE_SECRET_KEY, GMAIL_ADDRESS, GMAIL_APP_PASSWORD (see README).
+name: Weekly summary email
+ 
+on:
+  schedule:
+    - cron: "47 11 * * 5"   # Fridays 11:47 UTC (about noon)
+  workflow_dispatch:
+ 
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and send the summary
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          SUMMARY_TO: ${{ secrets.SUMMARY_TO }}
+          SITE: https://${{ github.repository_owner }}.github.io
+        run: |
+          script=$(find . -name 'weekly_digest*.py' -not -path './.git/*' | head -1)
+          if [ -z "$script" ]; then
+            echo "Can't find weekly_digest.py in the repository. Add it as .github/scripts/weekly_digest.py (see README)."
+            exit 1
+          fi
+          echo "Using $script"
+          python3 "$script"
+ 
+Claude finished the response
