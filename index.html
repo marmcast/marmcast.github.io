@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MARMCast Race Ladder</title>
+<meta name="description" content="MARMCast Race Ladder: community scores for running events. Thunderboxes, scenery, swag bag and performance.">
+<link rel="icon" href="marmcast.jpg">
+<link rel="apple-touch-icon" href="marmcast.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Montserrat:wght@800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  /* ====== SETTINGS: paste your two Supabase values here ====== */
+  const SUPABASE_URL = "https://hwrgdegqgdxwlkptxqzu.supabase.co/rest/v1/";   // e.g. "https://abcdefgh.supabase.co"
+  const SUPABASE_KEY = "sb_publishable_pSrC_0Hhu6RbgYxifKeu5w_vw0xolYj";   // your Publishable key (or "anon" key on older projects)
+  /* =========================================================== */
+</script>
+<style>
+:root{
+  --bg:#f5f6f2; --card:#fff; --ink:#17201b; --muted:#5d6a62; --line:#dfe4dc;
+  --brand2:#1f7a45; --accent:#ea580c; --warn:#b45309; --bad:#b91c1c; --ok:#15803d; --chip:#eef2ec;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f1512;--card:#17201b;--ink:#e8eee9;--muted:#9aa8a0;--line:#2a362f;--brand2:#22c55e;--chip:#1f2a24;--accent:#fb923c}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,sans-serif}
+header{background:#14532d;color:#fff;padding:18px 16px 0}
+@media (prefers-color-scheme:dark){header{background:#0b2a18}}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font:700 30px/1 "Barlow Condensed",sans-serif;letter-spacing:.5px;margin:0;text-transform:uppercase}
+h1 span{color:#fdba74}
+.tag{opacity:.85;font-size:13px;margin:4px 0 12px}
+nav{display:flex;gap:4px;overflow-x:auto}
+nav button{background:none;border:0;color:#d1fae5;font:600 14px Inter;padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav button.on{color:#fff;border-color:#fdba74}
+main{padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+h2{font:700 22px/1.1 "Barlow Condensed",sans-serif;text-transform:uppercase;margin:0 0 10px;letter-spacing:.3px}
+h3{font-size:15px;margin:14px 0 6px}
+.muted{color:var(--muted);font-size:13px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;background:var(--chip);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;padding:7px 12px;border-radius:999px;font:600 13px Inter;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.controls input,.controls select{width:auto;flex:1;min-width:130px}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 4px}
+.btn{background:var(--brand2);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:600 14px Inter;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:var(--chip);color:var(--ink)}
+.btn.bad{background:var(--bad)}
+.btn.sm{padding:6px 10px;font-size:13px}
+.linkbtn{background:none;border:0;color:var(--brand2);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:0}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;color:var(--muted);cursor:pointer;user-select:none;background:var(--card)}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;min-width:160px;white-space:normal}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--chip)}
+.rname{font-weight:600}
+.sc{display:inline-block;min-width:34px;padding:3px 6px;border-radius:6px;font-weight:600}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--muted);margin-right:4px}
+.pill.admin{background:#dcfce7;color:#14532d}
+.pill.public{background:#ffedd5;color:#9a3412}
+.pill.pending{background:#fef3c7;color:#92400e}
+.pill.rejected{background:#fee2e2;color:#991b1b}
+.rate{padding:8px 0;border-bottom:1px dashed var(--line)}
+.rate .top{display:flex;align-items:center;gap:8px}
+.rate .lbl{flex:1;font-size:14px;font-weight:600}
+.rate .lbl small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.rate input{margin-top:6px;font-size:14px}
+.dots{display:flex;gap:4px}
+.dots button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--card);font:600 14px Inter;color:var(--ink);cursor:pointer}
+.dots button.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
+.checks{list-style:none;padding:0;margin:8px 0}
+.checks li{padding:4px 0;font-size:13px;display:flex;gap:8px}
+.checks .i{width:18px;text-align:center;font-weight:700}
+.probs{color:var(--bad);font-size:13px;font-weight:600;margin:10px 0 0}.probs div{margin:4px 0}
+.previewbar{background:#1e3a8a;color:#fff;font-size:13px;padding:8px 16px;text-align:center}
+.previewbar button{margin-left:8px;background:#fff;color:#1e3a8a;border:0;border-radius:999px;padding:4px 10px;font:600 12px Inter;cursor:pointer}
+.ok{color:var(--ok)}.no{color:var(--bad)}.wa{color:var(--warn)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+.bar{display:flex;align-items:center;gap:8px;font-size:13px;margin:5px 0}
+.bar .l{width:110px;flex-shrink:0}
+.bar .t{flex:1;height:10px;background:var(--chip);border-radius:6px;overflow:hidden}
+.bar .f{height:100%;background:var(--brand2);border-radius:6px}
+.bar .v{width:34px;text-align:right;font-weight:600}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.modal.show{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px}
+@media(min-width:700px){.modal{align-items:center}.sheet{border-radius:16px}}
+.close{float:right;background:var(--chip);border:0;border-radius:999px;width:32px;height:32px;font-size:18px;cursor:pointer;color:var(--ink)}
+.review{border-left:4px solid var(--line);padding-left:10px;margin:12px 0}
+.review.admin{border-color:#16a34a}.review.public{border-color:var(--accent)}
+.review .cat{font-size:13px;margin:3px 0}
+.review .cat i{color:var(--muted)}
+.empty{text-align:center;padding:30px 10px;color:var(--muted)}
+.banner{background:#fef3c7;color:#78350f;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+@media (prefers-color-scheme:dark){.banner{background:#3a2d0b;color:#fde68a}}
+.newrace{background:var(--chip);border-radius:10px;padding:12px;margin-top:12px}
+.similar{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}
+.similar.block{background:#fee2e2;border-color:#fecaca}
+@media (prefers-color-scheme:dark){.similar{background:#2b1d10;border-color:#7c2d12}.similar.block{background:#3b1414;border-color:#7f1d1d}}
+.similar div{margin:4px 0}
+a{color:var(--brand2)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#17201b;color:#fff;padding:10px 16px;border-radius:999px;font-size:13px;display:none;z-index:20}
+.item{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}
+.row .grow{flex:1;min-width:180px}
+.flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+footer{padding:20px 16px 40px;text-align:center}
+footer button{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}
+
+header{position:relative;overflow:hidden}
+header::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.13;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 160' preserveAspectRatio='none'%3E%3Cpath d='M-10 120 C 80 40, 160 150, 250 90 S 420 20, 500 80 S 590 130, 620 60' fill='none' stroke='white' stroke-width='4' stroke-dasharray='14 10' stroke-linecap='round'/%3E%3Ccircle cx='250' cy='90' r='6' fill='white'/%3E%3Ccircle cx='500' cy='80' r='6' fill='white'/%3E%3C/svg%3E") right center/700px 100% no-repeat}
+header .wrap{position:relative}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;flex-shrink:0;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))}
+.ic{width:18px;height:18px;vertical-align:-4px;flex-shrink:0}
+th .ic{display:block;margin:0 auto 3px;width:20px;height:20px;color:var(--brand2)}
+.rate .lbl{display:flex;gap:10px;align-items:center}
+.rate .lbl .ic{width:28px;height:28px;padding:4px;border-radius:8px;background:var(--chip);color:var(--brand2)}
+.rate .lbl small{display:block}
+.bar .l .ic{color:var(--brand2);margin-right:4px}
+.radarwrap{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.radar{width:170px;height:170px;flex-shrink:0;color:var(--brand2)}
+.radar .grid{fill:none;stroke:var(--line)}
+.radar .shape{fill:currentColor;fill-opacity:.22;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.radarwrap .bars{flex:1;min-width:200px}
+.empty-art{display:block;margin:0 auto 8px;width:64px;height:64px;color:var(--line)}
+.bar .f{display:block}
+.bar .l{width:140px;display:flex;align-items:center;white-space:nowrap}
+.rate .top{flex-wrap:wrap}
+.dots{margin-left:auto}
+@media(max-width:420px){.dots button{width:34px;height:34px}h1{font-size:26px}}
+
+/* ===== MARMCast theme (black, neon green, purple) ===== */
+:root{--bg:#0a0a0a;--card:#151515;--ink:#f4f4f4;--muted:#a3a3a3;--line:#2b2b2b;--brand2:#5ddb56;--accent:#a274b8;--purple:#835c95;--warn:#f0b13a;--bad:#ff5c5c;--ok:#5ddb56;--chip:#232323}
+html{color-scheme:dark}
+header{background:#000;border-bottom:2px solid var(--brand2);padding-top:20px}
+header::before{opacity:.22;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 160' preserveAspectRatio='none'%3E%3Cpath d='M0 80 L60 80 L75 40 L90 120 L105 60 L120 100 L135 80 L250 80 L262 30 L276 130 L290 50 L304 110 L318 80 L440 80 L452 45 L466 115 L480 65 L494 95 L508 80 L600 80' fill='none' stroke='%235ddb56' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E") right center/640px 70% no-repeat}
+h1{font-family:Montserrat,Inter,sans-serif;font-weight:900;letter-spacing:-.3px;color:#fff;font-size:30px;line-height:1.05}
+h1 span{color:var(--brand2);display:block}
+h2{font-family:Montserrat,Inter,sans-serif;font-weight:800;letter-spacing:0}
+.tag{color:#d0d0d0}
+.brand{gap:14px}
+.logo{width:108px;height:108px;border-radius:14px;object-fit:cover;border:2px solid #262626;filter:none;box-shadow:0 0 0 1px rgba(93,219,86,.25),0 6px 18px rgba(0,0,0,.6)}
+@media(max-width:420px){.logo{width:84px;height:84px}h1{font-size:24px}}
+nav button{color:#bdbdbd}
+nav button.on{color:#fff;border-color:var(--brand2)}
+.btn{color:#061006}
+.btn.bad{color:#fff}
+.btn.ghost{color:var(--ink)}
+.dots button.on{color:#061006}
+.seg button.on{background:#2e2e2e;color:#fff;box-shadow:none}
+.pill{background:#262626;color:#bdbdbd}
+.pill.admin{background:rgba(93,219,86,.15);color:#86ec80}
+.pill.public{background:rgba(131,92,149,.35);color:#dcbdea}
+.pill.pending{background:rgba(240,177,58,.15);color:#f5c76a}
+.pill.rejected{background:rgba(255,92,92,.15);color:#ff9a9a}
+.review.admin{border-color:var(--brand2)}
+.review.public{border-color:var(--accent)}
+.banner{background:#2a2410;color:#f5d98a}
+.similar,.match{background:#1f1a26;border-color:#5b3f6d}
+.similar.block{background:#2b1414;border-color:#7f1d1d}
+.newrace{background:#1c1c1c}
+.previewbar{background:var(--purple)}
+.previewbar button{color:var(--purple)}
+.toast{background:#fff;color:#000}
+.radar,th .ic,.rate .lbl .ic,.bar .l .ic{color:var(--brand2)}
+a,.linkbtn{color:var(--brand2)}
+.probs{color:var(--bad)}
+th:first-child .ic{margin:0 0 3px}
+</style>
+</head>
+<body>
+<div id="previewBar" class="previewbar" hidden>Previewing as a member of the public. Admin tools are hidden. <button id="exitPreview">Exit preview</button></div>
+<header><div class="wrap">
+  <div class="brand"><img class="logo" src="marmcast.jpg" alt="MARMCast: for the middle aged runner"><h1>MARMCast <span>Race Ladder</span></h1></div>
+  <div class="tag">Community scores for running events, so you know before you enter</div>
+  <nav id="nav">
+    <button data-tab="races" class="on">Ladder</button>
+    <button data-tab="submit">Submit a score</button>
+    <button data-tab="mine">My submissions</button>
+    <button data-tab="review" class="adminOnly" hidden>Review queue <span id="qcount"></span></button>
+    <button data-tab="manageraces" class="adminOnly" hidden>Manage races <span id="rqcount"></span></button>
+    <button data-tab="results" class="adminOnly" hidden>Manage results</button>
+  </nav>
+</div></header>
+
+<main class="wrap">
+  <div id="status" class="banner" hidden></div>
+
+  <!-- LADDER -->
+  <section id="tab-races">
+    <div class="controls">
+      <div class="seg" id="srcSeg">
+        <button data-src="admin" class="on">Official only</button>
+        <button data-src="all">+ Verified public</button>
+      </div>
+      <input id="q" placeholder="Search race, town or country">
+      <select id="fCountry"><option value="">All countries</option></select>
+      <select id="fDist"><option value="">All distances</option></select>
+      <select id="fYear"><option value="">All years</option></select>
+    </div>
+    <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+    <p class="muted" id="legend"></p>
+  </section>
+
+  <!-- SUBMIT -->
+  <section id="tab-submit" hidden>
+    <div class="card">
+      <h2>Score a race</h2>
+      <p class="muted" id="submitIntro"></p>
+      <div id="asBox" hidden>
+        <label>Count this score as</label>
+        <div class="seg" id="asSeg"><button type="button" data-as="admin" class="on">Official</button><button type="button" data-as="public">Public</button></div>
+        <div class="muted" id="asHelp" style="margin-top:6px"></div>
+      </div>
+      <div id="pickBox">
+        <label>Find your race</label>
+        <input id="sFind" placeholder="Type a race name, town or country">
+        <select id="sRace" style="margin-top:6px"></select>
+        <p class="muted" style="margin:6px 0 0">Not listed? <button type="button" class="linkbtn" id="newRaceBtn">Add your race</button></p>
+      </div>
+      <div id="newRaceBox" class="newrace" hidden>
+        <b>Add a new race</b>
+        <div class="muted">An admin checks the name and adds it to the ladder. Your score is held until then. Please leave out the year and sponsor (“London Marathon”, not “TCS London Marathon 2026”).</div>
+        <div id="newRaceForm"></div>
+        <p class="muted" style="margin:8px 0 0"><button type="button" class="linkbtn" id="cancelNew">Cancel and pick from the list instead</button></p>
+      </div>
+      <div class="grid2">
+        <div><label>Year you ran it</label><select id="sYear"></select></div>
+        <div><label id="nameLbl">Your name or nickname <span class="muted">(optional)</span></label><input id="sName" maxlength="40"></div>
+      </div>
+      <h3>Scores (1 = poor, 5 = excellent). Notes are optional</h3>
+      <div id="sRates"></div>
+            <div id="sChecks" class="probs"></div>
+      <button class="btn" id="sBtn" disabled>Submit</button>
+    </div>
+  </section>
+
+  <!-- MINE -->
+  <section id="tab-mine" hidden>
+    <div class="card"><h2>My submissions</h2>
+      <p class="muted">Linked to this browser. If you clear your browser data you won’t see them here, but they stay on the site.</p>
+      <div id="mineList"></div></div>
+  </section>
+
+  <!-- REVIEW -->
+  <section id="tab-review" hidden>
+    <div class="card"><h2>Review queue</h2>
+      <p class="muted">Public submissions waiting for an admin. Approving adds them to the “+ Verified public” results.</p>
+      <div id="queueList"></div>
+    </div>
+  </section>
+
+  <!-- MANAGE RACES -->
+  <section id="tab-manageraces" hidden>
+    <div class="card" id="requestsCard"><h2>Race suggestions</h2><div id="requestList"></div></div>
+    <div class="card"><h2>Add a race</h2>
+      <div class="muted">
+        <b>Naming rules</b>, so every race has one name:
+        <ul style="margin:6px 0 0;padding-left:18px">
+          <li>Use the name the organisers use, <b>without the year or headline sponsor</b>: “London Marathon”, not “TCS London Marathon 2026”.</li>
+          <li>Use the name in its local language if that’s what runners use (“Marathon de Paris”); put English names, sponsor names and old names in <b>Also known as</b>.</li>
+          <li>Each distance at an event is its own entry (e.g. the 10K and the Half).</li>
+        </ul>
+      </div>
+      <div id="addForm"></div>
+      <p><button class="btn" id="rBtn">Add race</button></p>
+    </div>
+    <div class="card"><h2>All races</h2>
+      <input id="raceFilter" placeholder="Filter races">
+      <div id="raceAdminList"></div>
+    </div>
+  </section>
+
+  <!-- MANAGE RESULTS -->
+  <section id="tab-results" hidden>
+    <div class="card"><h2>Manage results</h2>
+      <p class="muted">Every score on the site. Deleting removes it permanently.</p>
+      <div class="controls">
+        <input id="resFilter" placeholder="Filter by race or name">
+        <select id="resStatus"><option value="approved">Published</option><option value="rejected">Rejected</option><option value="">All (not pending)</option></select>
+      </div>
+      <div id="resultsList"></div>
+    </div>
+  </section>
+</main>
+
+<footer><button id="previewLink" hidden>Preview as a member of the public</button> &nbsp; <button id="adminLink">Admin sign in</button></footer>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Categories: edit labels/descriptions here ---------- */
+const CATS = [
+  {k:"thunderboxes", s:"Thunderboxes", d:"Toilets: how many, queues, state of them"},
+  {k:"scenery",      s:"Scenery",      d:"Views along the route"},
+  {k:"swag",         s:"Swag Bag",     d:"Medal, T-shirt, goodies"},
+  {k:"performance",  s:"Performance",  d:"How well you ran on the day"}
+];
+
+/* ---------- Graphics: original inline SVG icons ---------- */
+const ICON_PATHS = {
+  race:'<path d="M5 21V3.5"/><path d="M5 4.5h12.5l-2.8 4.2 2.8 4.3H5"/><path d="M9 4.5v8.5M13 4.5v8.5" stroke-dasharray="2 2"/>',
+  overall:'<path d="M8 3.5h8v5.5a4 4 0 0 1-8 0z"/><path d="M8 5.5H5.2a3 3 0 0 0 3 4.3M16 5.5h2.8a3 3 0 0 1-3 4.3"/><path d="M12 13v3.5M9 20.5h6M10 16.5h4v4h-4z"/>',
+  count:'<circle cx="9" cy="8" r="3.2"/><path d="M3.2 20a5.8 5.8 0 0 1 11.6 0"/><circle cx="17.2" cy="9" r="2.5"/><path d="M15.6 14.3A4.6 4.6 0 0 1 21 18.8"/>',
+  thunderboxes:'<path d="M6 21V8.5a6 6 0 0 1 12 0V21"/><path d="M3.5 21h17"/><rect x="9" y="11.5" width="6" height="9.5" rx="1"/><path d="M14 5.6a1.7 1.7 0 1 1-1.9-2 1.4 1.4 0 0 0 1.9 2z"/>',
+  scenery:'<path d="M2 20l6.2-9.2 4 5.4 3.1-4.2L22 20z"/><circle cx="17.2" cy="5.8" r="2.3"/>',
+  swag:'<path d="M8 2.5l3.2 7.3M16 2.5l-3.2 7.3"/><circle cx="12" cy="15.3" r="5.6"/><path d="M12 12.6l.85 1.75 1.9.25-1.4 1.3.36 1.9-1.71-.92-1.71.92.36-1.9-1.4-1.3 1.9-.25z"/>',
+  performance:'<circle cx="12" cy="14" r="7.2"/><path d="M12 14v-3.8M9.8 2.8h4.4M12 2.8v4M18.6 7.4l1.6-1.6"/>'
+};
+const icon = (k, cls="ic") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[k]||""}</svg>`;
+function radar(a){
+  const cx=85, cy=85, R=56, n=CATS.length;
+  const pt=(i,v)=>{ const t=-Math.PI/2+i*2*Math.PI/n; return [cx+Math.cos(t)*R*v/5, cy+Math.sin(t)*R*v/5]; };
+  const poly=v=>CATS.map((c,i)=>pt(i,typeof v==="function"?v(c):v).map(x=>x.toFixed(1)).join(",")).join(" ");
+  const rings=[1,2,3,4,5].map(r=>`<polygon class="grid" points="${poly(r)}"/>`).join("");
+  const axes=CATS.map((c,i)=>{ const [x,y]=pt(i,5); return `<line class="grid" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join("");
+  const has=CATS.some(c=>a.cats[c.k]!=null);
+  const shape=has?`<polygon class="shape" points="${poly(c=>a.cats[c.k]??0)}"/>`:"";
+  const labels=CATS.map((c,i)=>{ const [x,y]=pt(i,6.35); return `<svg x="${(x-10).toFixed(1)}" y="${(y-10).toFixed(1)}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><title>${c.s}</title>${ICON_PATHS[c.k]}</svg>`; }).join("");
+  return `<svg class="radar" viewBox="0 0 170 170" role="img" aria-label="Score shape across categories">${rings}${axes}${shape}${labels}</svg>`;
+}
+const DISTANCES = ["5K","10K","10 mile","Half marathon","Marathon","Ultra","Other"];
+const THIS_YEAR = new Date().getFullYear();
+const YEARS = []; for(let y=THIS_YEAR;y>=2015;y--) YEARS.push(y);
+
+/* ---------- Countries (ISO 3166 codes, names from the browser) ---------- */
+const COUNTRY_CODES = "AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CD CF CG CH CI CK CL CM CN CO CR CU CV CW CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW".split(" ");
+const countryName = (()=>{ try{ const dn=new Intl.DisplayNames(["en-GB"],{type:"region"}); return c=>{ try{ return dn.of(c)||c; }catch{ return c; } }; }catch{ return c=>c; } })();
+const COUNTRIES = COUNTRY_CODES.map(c=>({c,n:countryName(c)})).sort((a,b)=>a.n.localeCompare(b.n));
+function countryOptions(sel){
+  return `<option value="">Choose country…</option><option value="GB"${sel==="GB"?" selected":""}>${countryName("GB")}</option><option disabled>──────────</option>`
+    + COUNTRIES.map(x=>`<option value="${x.c}"${x.c===sel?" selected":""}>${x.n}</option>`).join("");
+}
+
+/* ---------- Race name matching (mirrors race_name_key in the database) ---------- */
+function nameKey(s){
+  return String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase()
+    .replace(/\b(19|20)\d{2}\b/g," ").replace(/&/g," and ").replace(/[^a-z0-9]+/g," ")
+    .replace(/\s+/g," ").trim().replace(/^the /,"");
+}
+const STOP = new Set(["the","and","of","annual","official","race","run","edition","presented","by","in","la","le","de","du","des","der","die","das","el"]);
+const GENERIC = new Set(["marathon","half","mile","miles","10k","5k","10","ultra","trail","city","road","fun","k","km","fell","relay","night","park","parkrun","challenge"]);
+function tokens(s){ return nameKey(s).split(" ").filter(t=>t && !STOP.has(t) && !/^\d+(st|nd|rd|th)$/.test(t)); }
+function bigrams(s){ const out=new Map(); const x=s.replace(/ /g,""); for(let i=0;i<x.length-1;i++){ const g=x.slice(i,i+2); out.set(g,(out.get(g)||0)+1); } return out; }
+function dice(a,b){ const A=bigrams(a), B=bigrams(b); let inter=0, tot=0; A.forEach((n,g)=>{ inter+=Math.min(n,B.get(g)||0); tot+=n; }); B.forEach(n=>tot+=n); return tot? 2*inter/tot : 0; }
+function similarity(a,b){
+  const ta=tokens(a), tb=tokens(b); if(!ta.length||!tb.length) return 0;
+  const A=ta.join(" "), B=tb.join(" "); if(A===B) return 1;
+  const sa=new Set(ta), sb=new Set(tb), inter=[...sa].filter(x=>sb.has(x)).length, small=Math.min(sa.size,sb.size);
+  const contained = inter===small && small>=2 ? 0.9 : 0;   // e.g. "London Marathon" inside "TCS London Marathon"
+  // Words shared by lots of races ("marathon", "half", "10k"...) shouldn't make two races look alike:
+  // if the distinctive parts of the names don't resemble each other, it's not a match.
+  const da=ta.filter(t=>!GENERIC.has(t)).join(" "), db=tb.filter(t=>!GENERIC.has(t)).join(" ");
+  if(da && db && dice(da,db)<0.5) return Math.min(0.4, Math.max(dice(A,B), contained));
+  return Math.max(dice(A,B), contained);
+}
+const domainOf = u => { try{ return new URL(u).hostname.replace(/^www\./,""); }catch{ return ""; } };
+function findSimilar(f, excludeId){
+  if(!f.name || f.name.trim().length<3) return [];
+  const dom=domainOf(f.website);
+  return S.races.filter(r=>r.id!==excludeId).map(r=>{
+    const names=[r.name,...(r.aliases||[])];
+    let score=Math.max(...names.map(n=>similarity(f.name,n)));
+    let why = score>=0.99 ? "same name" : "similar name";
+    if(dom && domainOf(r.website)===dom){ score=Math.max(score,0.95); why="same website"; }
+    const exact = names.some(n=>nameKey(n)===nameKey(f.name)) && r.country===f.country && r.distance===f.distance;
+    return {r,score,why,exact};
+  }).filter(x=>x.exact || x.score>=0.6).sort((a,b)=>(b.exact-a.exact)||(b.score-a.score)).slice(0,5);
+}
+
+/* ---------- state & utils ---------- */
+const S = { sb:null, session:null, isAdmin:false, races:[], scores:[], mine:[], queue:[], requests:[], adminAll:[],
+  src:"admin", sort:{k:"overall",dir:-1}, rates:{} };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+const fmt = v => v==null ? "–" : v.toFixed(1);
+function safeUrl(u){ try{ const x=new URL(String(u)); return x.protocol==="https:" ? x.href : null; }catch{ return null; } }
+function toast(m){ const t=$("toast"); t.textContent=m; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2800); }
+function heat(v){ if(v==null) return ""; const h=Math.round(((v-1)/4)*130); return `background:hsla(${h},70%,45%,.18)`; }
+function status(msg){ const b=$("status"); b.hidden=!msg; b.textContent=msg||""; }
+const uid = () => S.session?.user?.id || null;
+const place = r => `${esc(r.city)}, ${esc(countryName(r.country))}`;
+const raceById = id => S.races.find(r=>r.id===id);
+const raceLabel = r => r ? `${r.name} (${r.distance}), ${r.city}, ${countryName(r.country)}` : "Unknown race";
+function raceMatches(r,q){
+  if(!q) return true;
+  const hay=[r.name,...(r.aliases||[]),r.city,countryName(r.country),r.country].join(" ");
+  return nameKey(hay).includes(nameKey(q)) || [r.name,...(r.aliases||[])].some(n=>similarity(q,n)>=0.7);
+}
+function confirmTap(b, label){ if(b.dataset.confirm==="1") return true; b.dataset.confirm="1"; b.dataset.orig=b.textContent; b.textContent=label||"Tap again to confirm"; setTimeout(()=>{ if(b.isConnected){ b.dataset.confirm=""; b.textContent=b.dataset.orig; } },4000); return false; }
+async function ensureSession(){
+  if(S.session) return;
+  const {data,error}=await S.sb.auth.signInAnonymously();
+  if(error) throw error;
+  S.session=data.session;
+}
+function closeModal(){ $("modal").classList.remove("show"); }
+function openModal(html){ $("sheet").innerHTML=`<button class="close" data-close aria-label="Close">×</button>`+html; $("modal").classList.add("show"); }
+$("modal").addEventListener("click",e=>{ if(e.target.id==="modal" || e.target.closest("[data-close]")) closeModal(); });
+
+/* ---------- race form (shared by add, edit, suggest) ---------- */
+function raceFormHtml(p, f={}, opts={}){
+  return `<div class="grid2">
+    <div><label>Race name</label><input id="${p}Name" maxlength="120" value="${esc(f.name||"")}" placeholder="e.g. Worcester City Half Marathon"></div>
+    <div><label>Distance</label><select id="${p}Dist">${DISTANCES.map(d=>`<option${d===f.distance?" selected":""}>${d}</option>`).join("")}</select></div>
+    <div><label>Town / city</label><input id="${p}City" maxlength="80" value="${esc(f.city||"")}"></div>
+    <div><label>Country</label><select id="${p}Country">${countryOptions(f.country||"")}</select></div>
+    ${opts.terrain?`<div><label>Terrain</label><select id="${p}Terrain">${["Road","Trail","Mixed","Fell"].map(t=>`<option${t===f.terrain?" selected":""}>${t}</option>`).join("")}</select></div>`:""}
+    <div><label>Official website <span class="muted">(optional, helps spot duplicates)</span></label><input id="${p}Web" value="${esc(f.website||"")}" placeholder="https://"></div>
+  </div>
+  ${opts.aliases?`<label>Also known as <span class="muted">(sponsor names, other languages, old names; comma separated)</span></label><input id="${p}Alias" value="${esc((f.aliases||[]).join(", "))}">`:""}
+  ${opts.note?`<label>Anything else? <span class="muted">(optional)</span></label><input id="${p}Note" maxlength="300">`:""}
+  <div id="${p}Similar"></div>`;
+}
+function readRaceForm(p){
+  const v=id=>$(p+id)?.value.trim()||"";
+  return { name:v("Name"), distance:v("Dist"), city:v("City"), country:v("Country"), terrain:v("Terrain")||"Road",
+    website:safeUrl(v("Web")), aliases: $(p+"Alias") ? v("Alias").split(",").map(x=>x.trim()).filter(Boolean).slice(0,20) : undefined, note:v("Note")||null };
+}
+function bindSimilar(p, excludeId, onPick){
+  const run=()=>{
+    const f=readRaceForm(p), hits=findSimilar(f,excludeId), box=$(p+"Similar");
+    if(!hits.length){ box.innerHTML=""; return; }
+    const block=hits.some(h=>h.exact);
+    box.innerHTML=`<div class="similar ${block?"block":""}"><b>${block?"This race already exists:":"Is it one of these?"}</b>
+      ${hits.map(h=>`<div>• ${esc(h.r.name)} <span class="muted">(${esc(h.r.distance)}, ${place(h.r)}${h.exact?" · same name, country & distance":` · ${h.why}`})</span>
+      ${onPick?` <button class="linkbtn" data-pick="${esc(h.r.id)}">${onPick.label}</button>`:""}</div>`).join("")}</div>`;
+    if(onPick) box.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>onPick.fn(b.dataset.pick));
+  };
+  ["Name","City","Country","Dist","Web"].forEach(id=>$(p+id)?.addEventListener("input",run));
+  run();
+}
+function validRace(f){
+  if(f.name.length<3) return "Add the race name";
+  if(f.city.length<2) return "Add the town or city";
+  if(!f.country) return "Choose a country";
+  if(/\b(19|20)\d{2}\b/.test(f.name)) return "Leave the year out of the name";
+  return null;
+}
+function dbRaceError(error){
+  if(error.code==="23505") return "A race with that name, country and distance already exists";
+  return error.message;
+}
+
+/* ---------- tabs ---------- */
+$("nav").addEventListener("click",e=>{ const b=e.target.closest("button[data-tab]"); if(b) showTab(b.dataset.tab); });
+function showTab(t){
+  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  document.querySelectorAll("main section").forEach(s=>s.hidden = s.id!=="tab-"+t);
+  render();
+}
+
+/* ---------- static UI ---------- */
+DISTANCES.forEach(d=>$("fDist").add(new Option(d,d)));
+YEARS.forEach(y=>{ $("fYear").add(new Option(y,y)); $("sYear").add(new Option(y,y)); });
+$("srcSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; S.src=b.dataset.src; [...$("srcSeg").children].forEach(x=>x.classList.toggle("on",x===b)); renderTable(); });
+["q","fDist","fYear","fCountry"].forEach(id=>$(id).addEventListener("input",renderTable));
+$("sRates").innerHTML = CATS.map(c=>`<div class="rate"><div class="top"><div class="lbl">${icon(c.k)}<span>${c.s}<small>${c.d}</small></span></div>
+  <div class="dots" data-k="${c.k}">${[1,2,3,4,5].map(n=>`<button type="button" data-n="${n}">${n}</button>`).join("")}</div></div>
+  <input id="note-${c.k}" maxlength="500" placeholder="Notes on ${c.s.toLowerCase()} (optional)"></div>`).join("");
+$("sRates").addEventListener("click",e=>{ const b=e.target.closest("button[data-n]"); if(!b) return;
+  S.rates[b.parentElement.dataset.k]=+b.dataset.n;
+  [...b.parentElement.children].forEach(x=>x.classList.toggle("on",x===b)); renderChecks(); });
+["sRace","sYear"].forEach(id=>$(id).addEventListener("input",renderChecks));
+$("sFind").addEventListener("input",()=>{ renderRacePicker(); renderChecks(); });
+$("addForm").innerHTML = raceFormHtml("a",{},{aliases:true,terrain:true});
+bindSimilar("a", null);
+["raceFilter"].forEach(id=>$(id).addEventListener("input",renderRaceAdmin));
+["resFilter","resStatus"].forEach(id=>$(id).addEventListener("input",renderResults));
+
+/* ---------- scoring ---------- */
+const included = () => S.scores.filter(o => S.src==="all" || o.source==="admin");
+function aggregate(list){
+  const out={n:list.length, cats:{}};
+  CATS.forEach(c=>{ out.cats[c.k]=mean(list.map(o=>o[c.k]).filter(v=>typeof v==="number")); });
+  out.overall = mean(Object.values(out.cats).filter(v=>v!=null));
+  return out;
+}
+
+/* ---------- ladder ---------- */
+function renderTable(){
+  const q=$("q").value.trim(), dist=$("fDist").value, yr=$("fYear").value, ctry=$("fCountry").value;
+  const scores = included().filter(o=>!yr || String(o.year)===yr);
+  const rows = S.races.filter(r=>raceMatches(r,q) && (!dist || r.distance===dist) && (!ctry || r.country===ctry))
+    .map(r=>({r, a:aggregate(scores.filter(o=>o.race_id===r.id))}));
+  const {k,dir}=S.sort;
+  const val=(a,kk)=> kk==="overall"?a.overall : kk==="n"?a.n : a.cats[kk];
+  rows.sort((x,y)=>{
+    if(k==="name") return dir*x.r.name.localeCompare(y.r.name);
+    const vx=val(x.a,k), vy=val(y.a,k);
+    if(vx==null && vy==null) return x.r.name.localeCompare(y.r.name);
+    if(vx==null) return 1; if(vy==null) return -1;
+    return dir*(vx-vy);
+  });
+  const ar = kk => S.sort.k===kk ? (S.sort.dir<0?" ▼":" ▲") : "";
+  $("tbl").tHead.innerHTML = `<tr><th data-k="name">${icon("race")}Race${ar("name")}</th><th data-k="overall">${icon("overall")}Overall${ar("overall")}</th><th data-k="n">${icon("count")}Runners${ar("n")}</th>${CATS.map(c=>`<th data-k="${c.k}">${icon(c.k)}${c.s}${ar(c.k)}</th>`).join("")}</tr>`;
+  const tb=$("tbl").tBodies[0], span=CATS.length+3;
+  if(!S.races.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${S.sb?"No races yet.":"Loading…"}</td></tr>`;
+  else if(!rows.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">No races match those filters.</td></tr>`;
+  else tb.innerHTML = rows.map(({r,a})=>`<tr data-id="${esc(r.id)}">
+      <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}</div></td>
+      <td><span class="sc" style="font-size:14px;${heat(a.overall)}">${fmt(a.overall)}</span></td><td>${a.n||"–"}</td>
+      ${CATS.map(c=>`<td><span class="sc" style="${heat(a.cats[c.k])}">${fmt(a.cats[c.k])}</span></td>`).join("")}</tr>`).join("");
+  $("legend").textContent = S.src==="admin"
+    ? "Showing scores from trusted admins only. Switch to “+ Verified public” to include approved community scores."
+    : "Showing admin scores plus public scores approved by an admin.";
+}
+$("tbl").addEventListener("click",e=>{
+  const th=e.target.closest("th[data-k]");
+  if(th){ const k=th.dataset.k; S.sort = S.sort.k===k ? {k,dir:-S.sort.dir} : {k,dir:k==="name"?1:-1}; renderTable(); return; }
+  const tr=e.target.closest("tr[data-id]"); if(tr) openRace(tr.dataset.id);
+});
+
+/* ---------- race detail ---------- */
+async function deleteScore(id, btn){
+  if(!confirmTap(btn,"Tap again to delete")) return false;
+  const {error}=await S.sb.from("scores").delete().eq("id",id);
+  if(error){ toast("Couldn't delete: "+error.message); return false; }
+  toast("Score deleted"); await loadAll(); return true;
+}
+function reviewHtml(o){
+  return `<div class="review ${o.source}">
+    <div class="flex"><span class="pill ${o.source}">${o.source==="admin"?"Official":"Verified public"}</span><b>${o.year}</b>
+    <span class="muted">${esc(o.display_name || (o.source==="admin"?"Admin":"Runner"))} · overall ${fmt(aggregate([o]).overall)}</span>
+    ${S.isAdmin?`<button class="btn ghost sm" data-del="${esc(o.id)}" style="margin-left:auto">Delete</button>`:""}</div>
+    ${CATS.map(c=>`<div class="cat">${c.s}: <b>${o[c.k]}</b>${o[c.k+"_note"]?` · <i>${esc(o[c.k+"_note"])}</i>`:""}</div>`).join("")}
+  </div>`;
+}
+function openRace(id){
+  const r=raceById(id); if(!r) return;
+  const list = included().filter(o=>o.race_id===id).sort((a,b)=>(b.year-a.year)||(new Date(b.created_at)-new Date(a.created_at)));
+  const a=aggregate(list), years=[...new Set(list.map(o=>o.year))].sort((x,y)=>y-x), web=safeUrl(r.website);
+  openModal(`<h2>${esc(r.name)}</h2>
+    <div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${web?` · <a href="${esc(web)}" target="_blank" rel="noopener">Website</a>`:""}</div>
+    ${r.aliases?.length?`<div class="muted">Also known as: ${esc(r.aliases.join(", "))}</div>`:""}
+    <div class="card" style="margin-top:12px">
+      <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall)}">${fmt(a.overall)}</span>
+      <span class="muted">overall from ${a.n} runner${a.n===1?"":"s"} (${S.src==="admin"?"official only":"official + verified public"})</span></div>
+      <div class="radarwrap">${radar(a)}<div class="bars">${CATS.map(c=>`<div class="bar"><span class="l">${icon(c.k)}${c.s}</span><span class="t"><span class="f" style="width:${a.cats[c.k]?(a.cats[c.k]/5)*100:0}%"></span></span><span class="v">${fmt(a.cats[c.k])}</span></div>`).join("")}</div></div>
+    </div>
+    ${years.length>1?`<div class="card"><h3 style="margin-top:0">Year on year</h3>${years.map(y=>{const ay=aggregate(list.filter(o=>o.year===y));return `<div class="bar"><span class="l">${y} <span class="muted">(${ay.n})</span></span><span class="t"><span class="f" style="width:${(ay.overall/5)*100}%"></span></span><span class="v">${fmt(ay.overall)}</span></div>`}).join("")}</div>`:""}
+    <div class="card"><h3 style="margin-top:0">Scores & notes</h3>
+      ${list.length? list.map(reviewHtml).join("") : `<div class="muted">No scores yet for this view.</div>`}
+    </div>
+    <button class="btn" id="mScore">Score this race</button>`);
+  $("mScore").onclick=()=>pickRaceForScoring(id);
+  $("sheet").querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{ if(await deleteScore(b.dataset.del,b)) openRace(id); });
+}
+function pickRaceForScoring(id){ closeModal(); $("sFind").value=""; showTab("submit"); $("sRace").value=id; renderChecks(); }
+
+/* ---------- submit ---------- */
+S.newRace=false;
+function setNewRace(on){
+  S.newRace=on; $("newRaceBox").hidden=!on; $("pickBox").hidden=on;
+  if(on){
+    $("newRaceForm").innerHTML = raceFormHtml("n",{name:$("sFind").value.trim()},{});
+    bindSimilar("n", null, {label:"That’s it, use this", fn:id=>{ setNewRace(false); $("sFind").value=""; renderRacePicker(); $("sRace").value=id; renderChecks(); }});
+  }
+  renderChecks();
+}
+$("newRaceBtn").onclick=()=>setNewRace(true);
+$("cancelNew").onclick=()=>setNewRace(false);
+$("newRaceBox").addEventListener("input",renderChecks);
+function renderRacePicker(){
+  const cur=$("sRace").value, q=$("sFind").value.trim();
+  const list=[...S.races].filter(r=>raceMatches(r,q)).sort((a,b)=>a.name.localeCompare(b.name));
+  $("sRace").innerHTML = `<option value="">${list.length?`Choose a race… (${list.length})`:"No matches. Try another spelling, or suggest it"}</option>` + list.map(r=>`<option value="${esc(r.id)}">${esc(raceLabel(r))}</option>`).join("");
+  if(list.some(r=>r.id===cur)) $("sRace").value=cur;
+  else if(list.length===1) $("sRace").value=list[0].id;
+}
+function checkSubmission(){
+  const nr = S.newRace && $("nName") ? readRaceForm("n") : null;
+  const raceId = nr ? "" : $("sRace").value, year=+$("sYear").value;
+  const vals=CATS.map(c=>S.rates[c.k]).filter(Boolean), all=vals.length===CATS.length;
+  const C=[];
+  if(nr){
+    const err=validRace(nr), exact=findSimilar(nr).some(h=>h.exact);
+    C.push({ok:!err, show: err==="Leave the year out of the name", msg: err||"Race details"});
+    C.push({show:true, ok:!exact, msg:"That race is already listed. Tap “That’s it, use this” above"});
+  } else C.push({ok:!!raceId, msg:"Race selected"});
+  C.push({ok:all, msg:`All ${CATS.length} categories scored (${vals.length}/${CATS.length})`});
+  const extreme = all && new Set(vals).size===1 && (vals[0]===1 || vals[0]===5);
+  C.push({show:true, ok:!extreme, msg: extreme ? `All ${vals[0]}s isn’t allowed. No race is perfect (or hopeless) at everything` : "Not all 1s or all 5s"});
+  const dup = raceId && !(S.isAdmin && S.as==="public") && S.mine.some(m=>m.race_id===raceId && m.year===year && !m.on_behalf);
+  C.push({show:true, ok:!dup, msg: dup ? `You’ve already scored this race for ${year}` : "One score per person per race per year"});
+  if(all && raceId && !S.isAdmin){
+    const off=aggregate(S.scores.filter(o=>o.race_id===raceId && o.source==="admin"));
+    if(off.n){ const far=CATS.filter(c=>c.k!=="performance" && off.cats[c.k]!=null && Math.abs(S.rates[c.k]-off.cats[c.k])>=2).length;
+      if(far>=2) C.push({ok:true, warn:true, msg:`${far} categories are 2+ points away from the official average, so an admin will look closely`}); }
+  }
+  return {C, pass:C.every(c=>c.ok), raceId, year, nr};
+}
+function renderChecks(){
+  const {C,pass}=checkSubmission();
+  // Only show problems that block submitting (all 1s/5s, already scored); everything else stays quiet
+  $("sChecks").innerHTML=C.filter(c=>!c.ok && c.show).map(c=>`<div>${esc(c.msg)}</div>`).join("");
+  $("sBtn").disabled = !pass || !S.sb;
+}
+$("sBtn").onclick = async ()=>{
+  const v=checkSubmission(); if(!v.pass) return;
+  $("sBtn").disabled=true;
+  try{
+    await ensureSession();
+    let raceId=v.raceId||null, requestId=null;
+    if(v.nr){
+      if(S.isAdmin){ // admins just create the race
+        const {data,error}=await S.sb.from("races").insert({name:v.nr.name, city:v.nr.city, country:v.nr.country, distance:v.nr.distance, website:v.nr.website}).select("id").single();
+        if(error) throw new Error(dbRaceError(error)); raceId=data.id;
+      } else {
+        const {data,error}=await S.sb.from("race_requests").insert({name:v.nr.name, city:v.nr.city, country:v.nr.country, distance:v.nr.distance, website:v.nr.website, user_id:uid()}).select("id").single();
+        if(error) throw error; requestId=data.id;
+      }
+    }
+    const row={race_id:raceId, request_id:requestId, year:v.year, user_id:uid(), display_name:$("sName").value.trim()||null,
+      source:S.isAdmin?S.as:"public", status:S.isAdmin?"approved":"pending", on_behalf:S.isAdmin && S.as==="public"};
+    CATS.forEach(c=>{ row[c.k]=S.rates[c.k]; row[c.k+"_note"]=$("note-"+c.k).value.trim()||null; });
+    const {error}=await S.sb.from("scores").insert(row);
+    if(error){
+      if(requestId) await S.sb.from("race_requests").delete().eq("id",requestId);
+      if(error.code==="23505") throw new Error("You’ve already scored this race for that year.");
+      if(error.code==="23514") throw new Error("All 1s or all 5s isn’t allowed.");
+      throw error;
+    }
+    toast(S.isAdmin?(S.as==="public"?"Public score added":"Official score added"):"Submitted for review, thanks!");
+    S.rates={}; document.querySelectorAll("#sRates .dots button").forEach(b=>b.classList.remove("on"));
+    CATS.forEach(c=>$("note-"+c.k).value="");
+    if(S.newRace) setNewRace(false);
+    await loadAll(); showTab(S.isAdmin?"races":"mine");
+  }catch(e){ toast(e.message||"Couldn't submit"); renderChecks(); }
+};
+
+/* ---------- my submissions ---------- */
+function renderMine(){
+  const label = m => m.status==="approved" ? (m.source==="admin"?"Official":"Approved") : m.status==="pending" ? "Awaiting review" : "Not accepted";
+  $("mineList").innerHTML = S.mine.length ? S.mine.map(m=>`<div class="review ${m.status==="approved"?m.source:""}">
+      <span class="pill ${m.status==="approved"?m.source:m.status}">${label(m)}</span><b>${esc(raceById(m.race_id)?.name||m.race_requests?.name||"Unknown race")}</b>${!m.race_id?` <span class="muted">(new race, waiting to be added)</span>`:""} ${m.year} · overall ${fmt(aggregate([m]).overall)}
+      ${m.reject_reason?`<div class="muted">Admin note: ${esc(m.reject_reason)}</div>`:""}</div>`).join("")
+    : `<div class="empty">You haven’t submitted any scores from this browser yet.</div>`;
+}
+
+/* ---------- admin: review queue ---------- */
+function renderQueue(){
+  $("qcount").textContent = S.queue.length ? `(${S.queue.length})` : "";
+  $("queueList").innerHTML = S.queue.length ? S.queue.map(p=>{
+    const r=raceById(p.race_id), vals=CATS.map(c=>p[c.k]), warns=[];
+    const rq = !p.race_id ? S.requests.find(x=>x.id===p.request_id) : null;
+    const off=aggregate(S.scores.filter(o=>o.race_id===p.race_id && o.source==="admin"));
+    if(off.n){ const far=CATS.filter(c=>c.k!=="performance" && off.cats[c.k]!=null && Math.abs(p[c.k]-off.cats[c.k])>=2); if(far.length>=2) warns.push(`2+ points from official average on: ${far.map(c=>c.s).join(", ")}`); }
+    else warns.push("No official scores yet to compare against");
+    return `<div class="item" data-id="${esc(p.id)}">
+      <div class="flex"><b>${esc(r?raceLabel(r):(rq?`${rq.name} (${rq.distance}), ${rq.city}, ${countryName(rq.country)}`:"Unknown race"))}</b>${rq?`<span class="pill pending">New race</span>`:""}<span class="muted">${p.year} · ${esc(p.display_name||"Runner")}</span></div>
+      ${rq?`<div class="similar">This score came with a new race. <button class="linkbtn" data-goraces>Add or link the race in Manage races</button> first. The score then comes back here to approve.</div>`:""}
+      ${CATS.map(c=>`<div class="muted" style="margin:2px 0">${c.s}: <b>${p[c.k]}</b>${p[c.k+"_note"]?` · ${esc(p[c.k+"_note"])}`:""}</div>`).join("")}
+      <ul class="checks">${warns.length?warns.map(w=>`<li><span class="i wa">!</span>${esc(w)}</li>`).join(""):`<li><span class="i ok">✓</span>No warnings</li>`}</ul>
+      <input class="reason" placeholder="Note to submitter if rejecting (optional)" style="margin:6px 0">
+      <div class="flex"><button class="btn sm" data-act="approve" ${rq?"disabled":""}>Approve</button><button class="btn bad sm" data-act="reject">Reject</button><button class="btn ghost sm" data-act="delete">Delete</button></div>
+    </div>`;
+  }).join("") : `<div class="empty">Nothing waiting for review.</div>`;
+}
+$("queueList").addEventListener("click",async e=>{
+  if(e.target.closest("[data-goraces]")) return showTab("manageraces");
+  const b=e.target.closest("button[data-act]"); if(!b) return;
+  const box=b.closest(".item"), id=box.dataset.id;
+  if(b.dataset.act==="delete"){ await deleteScore(id,b); return; }
+  box.querySelectorAll("button").forEach(x=>x.disabled=true);
+  const upd = b.dataset.act==="approve"
+    ? {status:"approved", reviewed_by:uid(), reviewed_at:new Date().toISOString()}
+    : {status:"rejected", reject_reason:box.querySelector(".reason").value.trim().slice(0,300)||null, reviewed_by:uid(), reviewed_at:new Date().toISOString()};
+  const {error}=await S.sb.from("scores").update(upd).eq("id",id);
+  if(error){ toast("Couldn't update: "+error.message); box.querySelectorAll("button").forEach(x=>x.disabled=false); return; }
+  toast(b.dataset.act==="approve"?"Approved":"Rejected"); loadAll();
+});
+
+/* ---------- admin: races ---------- */
+$("rBtn").onclick=async()=>{
+  const f=readRaceForm("a"), err=validRace(f); if(err) return toast(err);
+  if(findSimilar(f).some(h=>h.exact)) return toast("That race already exists");
+  $("rBtn").disabled=true;
+  const {data,error}=await S.sb.from("races").insert({name:f.name, city:f.city, country:f.country, distance:f.distance, terrain:f.terrain, website:f.website, aliases:f.aliases||[]}).select("id").single();
+  $("rBtn").disabled=false;
+  if(error) return toast(dbRaceError(error));
+  if(S.prefillRequest){
+    const {error:e2}=await S.sb.rpc("resolve_request",{req:S.prefillRequest, race:data.id});
+    if(e2) toast("Race added, but couldn't move its scores: "+e2.message);
+    S.prefillRequest=null;
+  }
+  $("addForm").innerHTML = raceFormHtml("a",{},{aliases:true,terrain:true}); bindSimilar("a",null);
+  toast("Race added"); loadAll();
+};
+function renderRequests(){
+  $("rqcount").textContent = S.requests.length ? `(${S.requests.length})` : "";
+  $("requestsCard").hidden = !S.requests.length;
+  $("requestList").innerHTML = S.requests.map(q=>{
+    const hits=findSimilar(q), n=S.queue.filter(x=>x.request_id===q.id).length;
+    const opts=[...hits.map(h=>h.r), ...S.races.filter(r=>!hits.some(h=>h.r.id===r.id)).sort((a,b)=>a.name.localeCompare(b.name))];
+    return `<div class="item" data-id="${esc(q.id)}"><b>${esc(q.name)}</b> <span class="muted">(${esc(q.distance)}, ${place(q)})${n?` · ${n} score${n===1?"":"s"} waiting`:""}</span>
+      ${safeUrl(q.website)?`<div class="muted"><a href="${esc(safeUrl(q.website))}" target="_blank" rel="noopener">${esc(domainOf(q.website))}</a></div>`:""}
+      ${q.note?`<div class="muted">“${esc(q.note)}”</div>`:""}
+      ${hits.length?`<div class="similar">Possible existing match: ${hits.map(h=>`${esc(h.r.name)} (${esc(h.r.distance)}, ${place(h.r)})`).join("; ")}</div>`:""}
+      <div class="flex" style="margin-top:8px"><button class="btn sm" data-use>Add as a new race</button><button class="btn ghost sm" data-dismiss>Dismiss${n?` (deletes ${n} score${n===1?"":"s"})`:""}</button></div>
+      ${opts.length?`<div class="flex" style="margin-top:8px"><select class="linkto" style="flex:1;min-width:180px"><option value="">Or it’s an existing race…</option>${opts.map(r=>`<option value="${esc(r.id)}">${esc(raceLabel(r))}</option>`).join("")}</select><button class="btn ghost sm" data-link>It’s this existing race</button></div>`:""}
+      </div>`;
+  }).join("");
+}
+$("requestList").addEventListener("click",async e=>{
+  const box=e.target.closest(".item"); if(!box) return; const q=S.requests.find(x=>x.id===box.dataset.id); if(!q) return;
+  if(e.target.closest("[data-use]")){
+    $("addForm").innerHTML = raceFormHtml("a",q,{aliases:true,terrain:true}); bindSimilar("a",null);
+    S.prefillRequest=q.id; $("aName").scrollIntoView({behavior:"smooth",block:"center"}); toast("Tidy the name if needed, then Add race");
+  }
+  const lk=e.target.closest("[data-link]");
+  if(lk){
+    if(!box.querySelector(".linkto").value) return toast("Choose the existing race first");
+    if(!confirmTap(lk,"Tap again to link")) return;
+    const {error}=await S.sb.rpc("resolve_request",{req:q.id, race:box.querySelector(".linkto").value});
+    if(error) return toast("Couldn't link: "+error.message);
+    toast("Linked. Its scores are now in the review queue"); return loadAll();
+  }
+  const dm=e.target.closest("[data-dismiss]");
+  if(dm){
+    if(!confirmTap(dm,"Tap again to dismiss")) return;
+    const {error}=await S.sb.from("race_requests").delete().eq("id",q.id);
+    if(error) return toast("Couldn't dismiss"); loadAll();
+  }
+});
+function renderRaceAdmin(){
+  const q=$("raceFilter").value.trim();
+  const list=S.races.filter(r=>raceMatches(r,q));
+  const counts={}; S.adminAll.concat(S.queue).forEach(o=>counts[o.race_id]=(counts[o.race_id]||0)+1);
+  $("raceAdminList").innerHTML = list.length ? list.map(r=>`<div class="row"><div class="grow"><b>${esc(r.name)}</b> <span class="muted">· ${esc(r.distance)} · ${place(r)} · ${counts[r.id]||0} scores</span>
+      ${r.aliases?.length?`<div class="muted">aka ${esc(r.aliases.join(", "))}</div>`:""}</div>
+      <button class="btn ghost sm" data-edit="${esc(r.id)}">Edit</button><button class="btn ghost sm" data-merge="${esc(r.id)}">Merge</button><button class="btn ghost sm" data-delrace="${esc(r.id)}">Delete</button></div>`).join("")
+    : `<div class="muted" style="padding:8px 0">${S.races.length?"No matches.":"None yet."}</div>`;
+}
+$("raceAdminList").addEventListener("click",async e=>{
+  const ed=e.target.closest("[data-edit]"), mg=e.target.closest("[data-merge]"), dl=e.target.closest("[data-delrace]");
+  if(ed) return editRace(ed.dataset.edit);
+  if(mg) return mergeRace(mg.dataset.merge);
+  if(dl){
+    if(!confirmTap(dl,"Tap again (deletes its scores too)")) return;
+    const {error}=await S.sb.from("races").delete().eq("id",dl.dataset.delrace);
+    if(error) return toast("Couldn't delete: "+error.message);
+    toast("Race deleted"); loadAll();
+  }
+});
+function editRace(id){
+  const r=raceById(id); if(!r) return;
+  openModal(`<h2>Edit race</h2>${raceFormHtml("e",r,{aliases:true,terrain:true})}<p><button class="btn" id="eGo">Save</button></p>`);
+  bindSimilar("e", id);
+  $("eGo").onclick=async()=>{
+    const f=readRaceForm("e"), err=validRace(f); if(err) return toast(err);
+    $("eGo").disabled=true;
+    const {error}=await S.sb.from("races").update({name:f.name, city:f.city, country:f.country, distance:f.distance, terrain:f.terrain, website:f.website, aliases:f.aliases||[]}).eq("id",id);
+    $("eGo").disabled=false;
+    if(error) return toast(dbRaceError(error));
+    closeModal(); toast("Race updated"); loadAll();
+  };
+}
+function mergeRace(id){
+  const r=raceById(id); if(!r) return;
+  const others=S.races.filter(x=>x.id!==id).map(x=>({x,s:Math.max(...[x.name,...(x.aliases||[])].map(n=>similarity(r.name,n)))+(x.distance===r.distance?0.2:0)+(x.country===r.country?0.1:0)}))
+    .sort((a,b)=>b.s-a.s);
+  openModal(`<h2>Merge duplicate race</h2>
+    <p>Merge <b>${esc(raceLabel(r))}</b> into:</p>
+    <select id="mTarget">${others.map(o=>`<option value="${esc(o.x.id)}">${esc(raceLabel(o.x))}</option>`).join("")}</select>
+    <p class="muted">All its scores move to the race you choose, and its name is kept as an “also known as” so searches still find it. Then this entry is deleted. If the same person scored the same year on both, the score on the race you keep wins.</p>
+    <button class="btn" id="mGo" ${others.length?"":"disabled"}>Merge</button>`);
+  $("mGo").onclick=async()=>{
+    if(!confirmTap($("mGo"),"Tap again to merge")) return;
+    $("mGo").disabled=true;
+    const {error}=await S.sb.rpc("merge_races",{src:id, dst:$("mTarget").value});
+    if(error){ toast("Couldn't merge: "+error.message); $("mGo").disabled=false; return; }
+    closeModal(); toast("Races merged"); loadAll();
+  };
+}
+
+/* ---------- admin: results ---------- */
+function renderResults(){
+  const q=$("resFilter").value.trim().toLowerCase(), st=$("resStatus").value;
+  const list=S.adminAll.filter(o=>(!st || o.status===st) && (!q || (raceLabel(raceById(o.race_id))+" "+(o.display_name||"")).toLowerCase().includes(q)))
+    .sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,300);
+  $("resultsList").innerHTML = list.length ? list.map(o=>`<div class="row"><div class="grow">
+      <span class="pill ${o.status==="approved"?o.source:o.status}">${o.status==="approved"?(o.source==="admin"?"Official":"Public"):"Rejected"}</span>
+      <b>${esc(raceById(o.race_id)?.name||"Unknown race")}</b> ${o.year}
+      <div class="muted">${esc(o.display_name||(o.source==="admin"?"Admin":"Runner"))} · ${CATS.map(c=>`${c.s} ${o[c.k]}`).join(" · ")} · added ${new Date(o.created_at).toLocaleDateString("en-GB")}</div></div>
+      <button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button></div>`).join("")
+    : `<div class="empty">No results match.</div>`;
+}
+$("resultsList").addEventListener("click",e=>{ const b=e.target.closest("[data-del]"); if(b) deleteScore(b.dataset.del,b); });
+
+/* ---------- admin sign in ---------- */
+$("adminLink").onclick=async()=>{
+  if(S.realAdmin){ S.preview=false; $("previewBar").hidden=true; await S.sb.auth.signOut(); showTab("races"); return; }
+  openModal(`<h2>Admin sign in</h2>
+    <label>Email</label><input id="aEmail" type="email" autocomplete="username">
+    <label>Password</label><input id="aPass" type="password" autocomplete="current-password">
+    <p><button class="btn" id="aGo">Sign in</button></p><p class="muted" id="aMsg"></p>`);
+  $("aGo").onclick=async()=>{
+    $("aGo").disabled=true;
+    const {error}=await S.sb.auth.signInWithPassword({email:$("aEmail").value.trim(), password:$("aPass").value});
+    $("aGo").disabled=false;
+    if(error) return $("aMsg").textContent=error.message;
+    closeModal();
+  };
+};
+
+/* ---------- preview as public ---------- */
+function setPreview(on){ S.preview=on; S.isAdmin=!!S.realAdmin && !on; $("previewBar").hidden=!on; showTab("races"); window.scrollTo(0,0); loadAll(); }
+$("previewLink").onclick=()=>setPreview(true);
+$("exitPreview").onclick=()=>setPreview(false);
+
+/* ---------- admin: official or public score ---------- */
+S.as="admin";
+$("asSeg").addEventListener("click",e=>{ const b=e.target.closest("button[data-as]"); if(!b) return; S.as=b.dataset.as; [...$("asSeg").children].forEach(x=>x.classList.toggle("on",x===b)); renderAs(); renderChecks(); });
+function renderAs(){
+  const pub = S.isAdmin && S.as==="public";
+  $("asBox").hidden=!S.isAdmin;
+  $("asHelp").textContent = pub ? "Published straight away as a verified public score. Use this to enter scores runners have sent you." : "Goes into the official results.";
+  $("nameLbl").innerHTML = pub ? 'Runner’s name <span class="muted">(shown with the score)</span>' : 'Your name or nickname <span class="muted">(optional)</span>';
+}
+
+/* ---------- render ---------- */
+function render(){
+  renderRacePicker();
+  const present=[...new Set(S.races.map(r=>r.country))].map(c=>({c,n:countryName(c)})).sort((a,b)=>a.n.localeCompare(b.n));
+  const curC=$("fCountry").value;
+  $("fCountry").innerHTML=`<option value="">All countries</option>`+present.map(x=>`<option value="${x.c}">${esc(x.n)}</option>`).join("");
+  if(present.some(x=>x.c===curC)) $("fCountry").value=curC;
+  renderAs();
+  $("submitIntro").textContent = S.isAdmin
+    ? "You’re an admin, so this score is published straight away."
+    : "No account needed. Your score goes to an admin for review, then appears when people include verified public scores.";
+  document.querySelectorAll(".adminOnly").forEach(b=>b.hidden=!S.isAdmin);
+  $("previewLink").hidden = !S.realAdmin || !!S.preview;
+  $("adminLink").textContent = S.realAdmin ? "Sign out (admin)" : "Admin sign in";
+  renderTable(); renderChecks(); renderMine();
+  if(S.isAdmin){ renderQueue(); renderRequests(); renderRaceAdmin(); renderResults(); }
+}
+
+/* ---------- data ---------- */
+async function refreshRole(){
+  S.realAdmin=false;
+  if(S.session && !S.session.user.is_anonymous){ const {data}=await S.sb.rpc("is_admin"); S.realAdmin = data===true; }
+  S.isAdmin = S.realAdmin && !S.preview;
+}
+async function loadAll(){
+  const [r,s]=await Promise.all([ S.sb.from("races").select("*").order("name"), S.sb.from("scores").select("*").eq("status","approved") ]);
+  if(r.error||s.error){ status("Couldn’t load race data. The database may be waking up, so try again in a minute."); return; }
+  status(""); S.races=r.data; S.scores=s.data;
+  S.mine = uid() ? ((await S.sb.from("scores").select("*, race_requests(name)").eq("user_id",uid()).order("created_at",{ascending:false})).data||[]) : [];
+  if(S.isAdmin){
+    const [qq,aa,rq]=await Promise.all([
+      S.sb.from("scores").select("*").eq("status","pending").order("created_at"),
+      S.sb.from("scores").select("*").neq("status","pending"),
+      S.sb.from("race_requests").select("*").order("created_at")
+    ]);
+    S.queue=qq.data||[]; S.adminAll=aa.data||[]; S.requests=rq.data||[];
+  } else { S.queue=[]; S.adminAll=[]; S.requests=[]; }
+  render();
+}
+(async()=>{
+  render();
+  if(!SUPABASE_URL || !SUPABASE_KEY || !window.supabase){ status("Setup needed: add your Supabase URL and key at the top of index.html."); return; }
+  S.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  S.session = (await S.sb.auth.getSession()).data.session;
+  await refreshRole(); await loadAll();
+  S.sb.auth.onAuthStateChange((ev,session)=>{
+    if(ev!=="SIGNED_IN" && ev!=="SIGNED_OUT") return;
+    S.session=session;
+    setTimeout(async()=>{ await refreshRole(); await loadAll(); },0);
+  });
+})();
+</script>
+</body>
+</html>
