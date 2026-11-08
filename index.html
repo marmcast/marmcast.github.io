@@ -10,11 +10,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Montserrat:wght@800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Your Supabase settings live in config.js, so updating this file never wipes them -->
+<script src="config.js"></script>
 <script>
-  /* ====== SETTINGS: paste your two Supabase values here ====== */
-  const SUPABASE_URL = "https://hwrgdegqgdxwlkptxqzu.supabase.co";   // e.g. "https://abcdefgh.supabase.co"
-  const SUPABASE_KEY = "sb_publishable_pSrC_0Hhu6RbgYxifKeu5w_vw0xolYj";   // your Publishable key (or "anon" key on older projects)
-  /* =========================================================== */
+  const SUPABASE_URL = ((window.MARM_CONFIG||{}).url || "").trim().replace(/\/+$/,"").replace(/\/rest\/v1$/,"");
+  const SUPABASE_KEY = ((window.MARM_CONFIG||{}).key || "").trim();
 </script>
 <style>
 :root{
@@ -481,10 +481,13 @@ bindSimilar("a", null);
 
 /* ---------- scoring ---------- */
 const included = () => S.scores.filter(o => S.src==="all" || o.source==="admin");
+const MAXT = 5*CATS.length;   // overall is a total out of 20
+const fmtT = v => v==null ? "–" : String(Math.round(v*10)/10);
 function aggregate(list){
   const out={n:list.length, cats:{}};
   CATS.forEach(c=>{ out.cats[c.k]=mean(list.map(o=>o[c.k]).filter(v=>typeof v==="number")); });
-  out.overall = mean(Object.values(out.cats).filter(v=>v!=null));
+  const got=Object.values(out.cats).filter(v=>v!=null);
+  out.overall = got.length ? got.reduce((x,y)=>x+y,0) : null;   // total of the category averages, out of MAXT
   return out;
 }
 
@@ -504,14 +507,15 @@ function renderTable(){
     return dir*(vx-vy);
   });
   const ar = kk => S.sort.k===kk ? (S.sort.dir<0?" ▼":" ▲") : "";
-  $("tbl").tHead.innerHTML = `<tr><th data-k="name">${icon("race")}Race${ar("name")}</th><th data-k="overall">${icon("overall")}Overall${ar("overall")}</th><th data-k="n">${icon("count")}Runners${ar("n")}</th>${CATS.map(c=>`<th data-k="${c.k}">${icon(c.k)}${c.s}${ar(c.k)}</th>`).join("")}</tr>`;
+  $("tbl").tHead.innerHTML = `<tr><th data-k="name">${icon("race")}Race${ar("name")}</th>${CATS.map(c=>`<th data-k="${c.k}">${icon(c.k)}${c.s}${ar(c.k)}</th>`).join("")}<th data-k="n">${icon("count")}Runners${ar("n")}</th><th data-k="overall">${icon("overall")}Overall <span style="font-weight:400;opacity:.7">/${MAXT}</span>${ar("overall")}</th></tr>`;
   const tb=$("tbl").tBodies[0], span=CATS.length+3;
   if(!S.races.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${S.sb?"No races yet.":"Loading…"}</td></tr>`;
   else if(!rows.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">No races match those filters.</td></tr>`;
   else tb.innerHTML = rows.map(({r,a})=>`<tr data-id="${esc(r.id)}">
       <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}</div></td>
-      <td><span class="sc" style="font-size:14px;${heat(a.overall)}">${fmt(a.overall)}</span></td><td>${a.n||"–"}</td>
-      ${CATS.map(c=>`<td><span class="sc" style="${heat(a.cats[c.k])}">${fmt(a.cats[c.k])}</span></td>`).join("")}</tr>`).join("");
+      ${CATS.map(c=>`<td><span class="sc" style="${heat(a.cats[c.k])}">${fmt(a.cats[c.k])}</span></td>`).join("")}
+      <td>${a.n||"–"}</td>
+      <td><span class="sc" style="font-size:14px;${heat(a.overall==null?null:a.overall/CATS.length)}">${fmtT(a.overall)}</span></td></tr>`).join("");
   $("legend").textContent = S.src==="admin"
     ? "Showing scores from trusted admins only. Switch to “+ Verified public” to include approved community scores."
     : "Showing admin scores plus public scores approved by an admin.";
@@ -532,7 +536,7 @@ async function deleteScore(id, btn){
 function reviewHtml(o){
   return `<div class="review ${o.source}">
     <div class="flex"><span class="pill ${o.source}">${o.source==="admin"?"Official":"Verified public"}</span><b>${o.year}</b>
-    <span class="muted">${esc(o.display_name || (o.source==="admin"?"Admin":"Runner"))} · overall ${fmt(aggregate([o]).overall)}</span>
+    <span class="muted">${esc(o.display_name || (o.source==="admin"?"Admin":"Runner"))} · overall ${fmtT(aggregate([o]).overall)}</span>
     ${S.isAdmin?`<button class="btn ghost sm" data-del="${esc(o.id)}" style="margin-left:auto">Delete</button>`:""}</div>
     ${CATS.map(c=>`<div class="cat">${c.s}: <b>${o[c.k]}</b>${o[c.k+"_note"]?` · <i>${esc(o[c.k+"_note"])}</i>`:""}</div>`).join("")}
   </div>`;
@@ -545,11 +549,11 @@ function openRace(id){
     <div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${web?` · <a href="${esc(web)}" target="_blank" rel="noopener">Website</a>`:""}</div>
     ${r.aliases?.length?`<div class="muted">Also known as: ${esc(r.aliases.join(", "))}</div>`:""}
     <div class="card" style="margin-top:12px">
-      <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall)}">${fmt(a.overall)}</span>
-      <span class="muted">overall from ${a.n} runner${a.n===1?"":"s"} (${S.src==="admin"?"official only":"official + verified public"})</span></div>
+      <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall==null?null:a.overall/CATS.length)}">${fmtT(a.overall)}</span>
+      <span class="muted">out of ${MAXT}, from ${a.n} runner${a.n===1?"":"s"} (${S.src==="admin"?"official only":"official + verified public"})</span></div>
       <div class="radarwrap">${radar(a)}<div class="bars">${CATS.map(c=>`<div class="bar"><span class="l">${icon(c.k)}${c.s}</span><span class="t"><span class="f" style="width:${a.cats[c.k]?(a.cats[c.k]/5)*100:0}%"></span></span><span class="v">${fmt(a.cats[c.k])}</span></div>`).join("")}</div></div>
     </div>
-    ${years.length>1?`<div class="card"><h3 style="margin-top:0">Year on year</h3>${years.map(y=>{const ay=aggregate(list.filter(o=>o.year===y));return `<div class="bar"><span class="l">${y} <span class="muted">(${ay.n})</span></span><span class="t"><span class="f" style="width:${(ay.overall/5)*100}%"></span></span><span class="v">${fmt(ay.overall)}</span></div>`}).join("")}</div>`:""}
+    ${years.length>1?`<div class="card"><h3 style="margin-top:0">Year on year</h3>${years.map(y=>{const ay=aggregate(list.filter(o=>o.year===y));return `<div class="bar"><span class="l">${y} <span class="muted">(${ay.n})</span></span><span class="t"><span class="f" style="width:${(ay.overall/MAXT)*100}%"></span></span><span class="v">${fmtT(ay.overall)}</span></div>`}).join("")}</div>`:""}
     <div class="card"><h3 style="margin-top:0">Scores & notes</h3>
       ${list.length? list.map(reviewHtml).join("") : `<div class="muted">No scores yet for this view.</div>`}
     </div>
@@ -644,7 +648,7 @@ $("sBtn").onclick = async ()=>{
 function renderMine(){
   const label = m => m.status==="approved" ? (m.source==="admin"?"Official":"Approved") : m.status==="pending" ? "Awaiting review" : "Not accepted";
   $("mineList").innerHTML = S.mine.length ? S.mine.map(m=>`<div class="review ${m.status==="approved"?m.source:""}">
-      <span class="pill ${m.status==="approved"?m.source:m.status}">${label(m)}</span><b>${esc(raceById(m.race_id)?.name||m.race_requests?.name||"Unknown race")}</b>${!m.race_id?` <span class="muted">(new race, waiting to be added)</span>`:""} ${m.year} · overall ${fmt(aggregate([m]).overall)}
+      <span class="pill ${m.status==="approved"?m.source:m.status}">${label(m)}</span><b>${esc(raceById(m.race_id)?.name||m.race_requests?.name||"Unknown race")}</b>${!m.race_id?` <span class="muted">(new race, waiting to be added)</span>`:""} ${m.year} · overall ${fmtT(aggregate([m]).overall)}
       ${m.reject_reason?`<div class="muted">Admin note: ${esc(m.reject_reason)}</div>`:""}</div>`).join("")
     : `<div class="empty">You haven’t submitted any scores from this browser yet.</div>`;
 }
@@ -856,7 +860,8 @@ async function refreshRole(){
 }
 async function loadAll(){
   const [r,s]=await Promise.all([ S.sb.from("races").select("*").order("name"), S.sb.from("scores").select("*").eq("status","approved") ]);
-  if(r.error||s.error){ status("Couldn’t load race data. The database may be waking up, so try again in a minute."); return; }
+  if(r.error||s.error){ const e=r.error||s.error; console.error(e);
+    status("Couldn’t load race data. Supabase said: "+(e.message||e.code||"no reply")+(e.code?` (${e.code})`:"")+". If the database was paused, try again in a minute."); return; }
   status(""); S.races=r.data; S.scores=s.data;
   S.mine = uid() ? ((await S.sb.from("scores").select("*, race_requests(name)").eq("user_id",uid()).order("created_at",{ascending:false})).data||[]) : [];
   if(S.isAdmin){
@@ -871,7 +876,7 @@ async function loadAll(){
 }
 (async()=>{
   render();
-  if(!SUPABASE_URL || !SUPABASE_KEY || !window.supabase){ status("Setup needed: add your Supabase URL and key at the top of index.html."); return; }
+  if(!SUPABASE_URL || !SUPABASE_KEY || !window.supabase){ status("Setup needed: create config.js next to index.html with your Supabase URL and key (see README)."); return; }
   S.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   S.session = (await S.sb.auth.getSession()).data.session;
   await refreshRole(); await loadAll();
