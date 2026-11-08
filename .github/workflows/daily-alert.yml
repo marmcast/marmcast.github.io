@@ -1,0 +1,49 @@
+# Emails you (via a GitHub issue) once a day when scores or race suggestions are waiting.
+# Uses the same SUPABASE_URL and SUPABASE_KEY secrets as the keep-awake job.
+# Make sure you're watching the repository (Watch -> All Activity) to get the emails.
+name: Daily review alert
+
+on:
+  schedule:
+    - cron: "7 7 * * *"     # every day at 07:07 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for new entries
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SITE: https://${{ github.repository_owner }}.github.io
+        run: |
+          json=$(curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/admin_summary" \
+            -H "apikey: $SUPABASE_KEY" -H "Content-Type: application/json" -d '{}')
+          echo "Supabase replied: $json"
+          pending=$(echo "$json" | jq -er '.pending_scores')
+          requests=$(echo "$json" | jq -er '.race_suggestions')
+          published=$(echo "$json" | jq -er '.published_last_24h')
+
+          gh label create review-alert --color 5ddb56 --description "Daily MARMCast alert" --force
+          # close yesterday's alert so only one is ever open
+          for n in $(gh issue list --label review-alert --state open --json number -q '.[].number'); do
+            gh issue close "$n" --reason completed
+          done
+
+          if [ "$pending" = "0" ] && [ "$requests" = "0" ]; then
+            echo "Nothing waiting for review today."
+            exit 0
+          fi
+
+
+          body=$(printf '%s\n\n- **%s** score(s) waiting for review\n- **%s** race suggestion(s) waiting\n- %s score(s) published in the last 24 hours\n\nSign in as admin to deal with them: %s\n\n_This issue closes itself at the next daily check._' \
+            "Good morning! Here's what's waiting on the MARMCast Race Ladder:" "$pending" "$requests" "$published" "$SITE")
+          gh issue create --label review-alert \
+            --title "MARMCast: $pending score(s) to review, $requests race suggestion(s)" \
+            --body "$body"
