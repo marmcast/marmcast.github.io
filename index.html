@@ -263,7 +263,10 @@ tbody tr:hover td:nth-child(2){background:var(--chip)}
       </div>
       <div class="grid2">
         <div><label>Year you ran it</label><select id="sYear"></select></div>
-        <div><label id="nameLbl">Your name or nickname <span class="muted">(optional)</span></label><input id="sName" maxlength="40"></div>
+        <div id="nameBox"><label id="nameLbl">Your name or nickname <span class="muted">(optional)</span></label><input id="sName" maxlength="40"></div>
+        <div id="whoBox" hidden><label>Who ran it?</label>
+          <select id="sWho"></select>
+          <input id="sGuest" maxlength="30" placeholder="Guest’s name, e.g. Stu Cashmore" style="margin-top:6px" hidden></div>
       </div>
       <h3 id="scaleHdr">Scores (1 = poor, 5 = excellent). Notes are optional</h3>
       <div id="sRates"></div>
@@ -676,8 +679,12 @@ function checkSubmission(){
   C.push({ok:all, msg:`All ${CATS.length} categories scored (${vals.length}/${CATS.length})`});
   const extreme = all && new Set(vals).size===1 && [0,1,5].includes(vals[0]);
   C.push({show:true, ok:!extreme, msg: extreme ? `All ${vals[0]}s isn’t allowed. No race is perfect (or hopeless) at everything` : "Not all 1s or all 5s"});
-  const dup = raceId && !(S.isAdmin && S.as==="public") && S.mine.some(m=>m.race_id===raceId && m.year===year && !m.on_behalf);
-  C.push({show:true, ok:!dup, msg: dup ? `You’ve already scored this race for ${year}` : "One score per person per race per year"});
+  const official = S.isAdmin && S.as==="admin";
+  if(official) C.push({show: !!$("sWho").value, ok: !!officialName(), msg: $("sWho").value==="__guest" ? "Type the guest’s name" : "Choose who ran it"});
+  const dup = !raceId ? false
+    : official ? S.scores.some(o=>o.race_id===raceId && o.year===year && o.source==="admin" && (o.display_name||"").toLowerCase()===officialName().toLowerCase())
+    : !(S.isAdmin && S.as==="public") && S.mine.some(m=>m.race_id===raceId && m.year===year && !m.on_behalf);
+  C.push({show:true, ok:!dup, msg: dup ? (official ? `${officialName()} already has an official score for this race in ${year}` : `You’ve already scored this race for ${year}`) : "One score per person per race per year"});
   if(all && raceId && !S.isAdmin){
     const off=aggregate(S.scores.filter(o=>o.race_id===raceId && o.source==="admin"));
     if(off.n){ const far=CATS.filter(c=>c.k!=="performance" && off.cats[c.k]!=null && Math.abs(S.rates[c.k]-off.cats[c.k])>=2).length;
@@ -706,13 +713,14 @@ $("sBtn").onclick = async ()=>{
         if(error) throw error; requestId=data.id;
       }
     }
-    const row={race_id:raceId, request_id:requestId, year:v.year, user_id:uid(), display_name:$("sName").value.trim()||null,
-      source:S.isAdmin?S.as:"public", status:S.isAdmin?"approved":"pending", on_behalf:S.isAdmin && S.as==="public"};
+    const official = S.isAdmin && S.as==="admin";
+    const row={race_id:raceId, request_id:requestId, year:v.year, user_id:uid(), display_name: official ? officialName() : ($("sName").value.trim()||null),
+      source:S.isAdmin?S.as:"public", status:S.isAdmin?"approved":"pending", on_behalf: S.isAdmin};
     CATS.forEach(c=>{ row[c.k]=S.rates[c.k]; row[c.k+"_note"]=$("note-"+c.k).value.trim()||null; });
     const {error}=await S.sb.from("scores").insert(row);
     if(error){
       if(requestId) await S.sb.from("race_requests").delete().eq("id",requestId);
-      if(error.code==="23505") throw new Error("You’ve already scored this race for that year.");
+      if(error.code==="23505") throw new Error(S.isAdmin && S.as==="admin" ? "That runner already has an official score for this race and year." : "You’ve already scored this race for that year.");
       if(error.code==="23514") throw new Error("Those scores aren’t allowed (all the same at 0, 1 or 5, or a 0 on a public score).");
       throw error;
     }
@@ -720,6 +728,7 @@ $("sBtn").onclick = async ()=>{
     S.rates={}; document.querySelectorAll("#sRates .dots button").forEach(b=>b.classList.remove("on"));
     CATS.forEach(c=>$("note-"+c.k).value="");
     if(S.newRace) setNewRace(false);
+    $("sWho").value=""; $("sGuest").value=""; $("sGuest").hidden=true;
     await loadAll(); showTab(S.isAdmin?"races":"mine");
   }catch(e){ toast(e.message||"Couldn't submit"); renderChecks(); }
 };
@@ -1022,10 +1031,22 @@ $("exitPreview").onclick=()=>setPreview(false);
 /* ---------- admin: official or public score ---------- */
 S.as="admin";
 $("asSeg").addEventListener("click",e=>{ const b=e.target.closest("button[data-as]"); if(!b) return; S.as=b.dataset.as; [...$("asSeg").children].forEach(x=>x.classList.toggle("on",x===b)); renderAs(); renderChecks(); });
+/* Official scores: pick the runner from a list so names stay consistent */
+const OFFICIAL_RUNNERS = ["Tim (Marm)", "Andy Goldsby", "Tim & Andy (joint)"];
+$("sWho").innerHTML = `<option value="">Choose who ran it…</option>` + OFFICIAL_RUNNERS.map(n=>`<option>${esc(n)}</option>`).join("") + `<option value="__guest">Someone else (guest)…</option>`;
+$("sWho").addEventListener("input",()=>{ $("sGuest").hidden = $("sWho").value!=="__guest"; renderChecks(); });
+$("sGuest").addEventListener("input",renderChecks);
+function officialName(){
+  const w=$("sWho").value;
+  if(w!=="__guest") return w;
+  const g=$("sGuest").value.trim().replace(/\s*\(guests?\)\s*$/i,"");
+  return g ? `${g} (guest)` : "";
+}
 function renderAs(){
   const pub = S.isAdmin && S.as==="public";
   // 0 is only allowed on official scores (admin, Official selected)
   const zeroOk = S.isAdmin && S.as==="admin";
+  $("whoBox").hidden = !zeroOk; $("nameBox").hidden = zeroOk;
   document.querySelectorAll("#sRates .zero").forEach(b=>b.hidden=!zeroOk);
   $("scaleHdr").textContent = zeroOk ? "Scores (0 = a disaster, official only; 1 = poor, 5 = excellent). Notes are optional" : "Scores (1 = poor, 5 = excellent). Notes are optional";
   if(!zeroOk) CATS.forEach(c=>{ if(S.rates[c.k]===0){ delete S.rates[c.k]; document.querySelector(`#sRates .dots[data-k="${c.k}"] .zero`)?.classList.remove("on"); } });
