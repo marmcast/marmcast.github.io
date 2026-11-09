@@ -570,7 +570,7 @@ function reviewHtml(o){
   return `<div class="review ${o.source}">
     <div class="flex"><span class="pill ${o.source}">${o.source==="admin"?"Official":"Verified public"}</span><b>${o.year}</b>
     <span class="muted">${esc(o.display_name || (o.source==="admin"?"Admin":"Runner"))} · overall ${fmtT(aggregate([o]).overall)}</span>
-    ${S.isAdmin?`<button class="btn ghost sm" data-del="${esc(o.id)}" style="margin-left:auto">Delete</button>`:""}</div>
+    ${S.isAdmin?`<span style="margin-left:auto" class="flex">${srcBtn(o)}<button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button></span>`:""}</div>
     ${CATS.map(c=>`<div class="cat">${c.s}: <b>${o[c.k]}</b>${o[c.k+"_note"]?` · <i>${esc(o[c.k+"_note"])}</i>`:""}</div>`).join("")}
   </div>`;
 }
@@ -593,6 +593,7 @@ function openRace(id){
     <button class="btn" id="mScore">Score this race</button>`);
   $("mScore").onclick=()=>pickRaceForScoring(id);
   $("sheet").querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{ if(await deleteScore(b.dataset.del,b)) openRace(id); });
+  $("sheet").querySelectorAll("[data-setsrc]").forEach(b=>b.onclick=async()=>{ if(await setSource(b)) openRace(id); });
 }
 function pickRaceForScoring(id){ closeModal(); $("sFind").value=""; showTab("submit"); $("sRace").value=id; renderChecks(); }
 
@@ -701,7 +702,7 @@ function renderQueue(){
       ${CATS.map(c=>`<div class="muted" style="margin:2px 0">${c.s}: <b>${p[c.k]}</b>${p[c.k+"_note"]?` · ${esc(p[c.k+"_note"])}`:""}</div>`).join("")}
       <ul class="checks">${warns.length?warns.map(w=>`<li><span class="i wa">!</span>${esc(w)}</li>`).join(""):`<li><span class="i ok">✓</span>No warnings</li>`}</ul>
       <input class="reason" placeholder="Note to submitter if rejecting (optional)" style="margin:6px 0">
-      <div class="flex"><button class="btn sm" data-act="approve" ${rq?"disabled":""}>Approve</button><button class="btn bad sm" data-act="reject">Reject</button><button class="btn ghost sm" data-act="delete">Delete</button></div>
+      <div class="flex"><button class="btn sm" data-act="approve" ${rq?"disabled":""}>Approve</button><button class="btn ghost sm" data-act="approveoff" ${rq?"disabled":""}>Approve as official</button><button class="btn bad sm" data-act="reject">Reject</button><button class="btn ghost sm" data-act="delete">Delete</button></div>
     </div>`;
   }).join("") : `<div class="empty">Nothing waiting for review.</div>`;
 }
@@ -711,12 +712,12 @@ $("queueList").addEventListener("click",async e=>{
   const box=b.closest(".item"), id=box.dataset.id;
   if(b.dataset.act==="delete"){ await deleteScore(id,b); return; }
   box.querySelectorAll("button").forEach(x=>x.disabled=true);
-  const upd = b.dataset.act==="approve"
-    ? {status:"approved", reviewed_by:uid(), reviewed_at:new Date().toISOString()}
+  const upd = b.dataset.act==="approve" || b.dataset.act==="approveoff"
+    ? {status:"approved", reviewed_by:uid(), reviewed_at:new Date().toISOString(), ...(b.dataset.act==="approveoff"?{source:"admin"}:{})}
     : {status:"rejected", reject_reason:box.querySelector(".reason").value.trim().slice(0,300)||null, reviewed_by:uid(), reviewed_at:new Date().toISOString()};
   const {error}=await S.sb.from("scores").update(upd).eq("id",id);
   if(error){ toast("Couldn't update: "+error.message); box.querySelectorAll("button").forEach(x=>x.disabled=false); return; }
-  toast(b.dataset.act==="approve"?"Approved":"Rejected"); loadAll();
+  toast(b.dataset.act==="approveoff"?"Approved as official":b.dataset.act==="approve"?"Approved":"Rejected"); loadAll();
 });
 
 /* ---------- admin: races ---------- */
@@ -856,6 +857,15 @@ $("adminSummary").addEventListener("click",e=>{
   showTab(g.dataset.go);
 });
 
+/* ---------- admin: switch a published score between Official and Public ---------- */
+const srcBtn = o => o.status==="approved" ? `<button class="btn ghost sm" data-setsrc="${o.source==="admin"?"public":"admin"}" data-id="${esc(o.id)}">${o.source==="admin"?"Make public":"Make official"}</button>` : "";
+async function setSource(b){
+  if(!confirmTap(b, b.dataset.setsrc==="admin"?"Tap again: make official":"Tap again: make public")) return false;
+  const {error}=await S.sb.from("scores").update({source:b.dataset.setsrc}).eq("id",b.dataset.id);
+  if(error){ toast("Couldn't change it: "+error.message); return false; }
+  toast(b.dataset.setsrc==="admin"?"Now an official score":"Now a public score"); await loadAll(); return true;
+}
+
 /* ---------- admin: results ---------- */
 function renderResults(){
   const q=$("resFilter").value.trim().toLowerCase(), st=$("resStatus").value, when=$("resWhen").value;
@@ -867,10 +877,13 @@ function renderResults(){
       ${isNew(pubTime(o))?`<span class="pill new">New</span>`:""}<b>${esc(raceById(o.race_id)?.name||"Unknown race")}</b> ${o.year} · overall ${fmtT(aggregate([o]).overall)}
       <div class="muted">${esc(o.display_name||(o.source==="admin"?"Admin":"Runner"))} · ${CATS.map(c=>`${c.s} ${o[c.k]}`).join(" · ")}</div>
       <div class="muted">${o.status==="approved"?"Published":"Rejected"} ${fmtWhen(pubTime(o))}${o.source==="public"?(o.on_behalf?" · entered by an admin":o.reviewed_by?` · approved by ${o.reviewed_by===uid()?"you":"another admin"}`:""):""}</div></div>
-      <button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button></div>`).join("")
+      ${srcBtn(o)}<button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button></div>`).join("")
     : `<div class="empty">${when==="since"?"Nothing published since your last visit.":"No results match."}</div>`;
 }
-$("resultsList").addEventListener("click",e=>{ const b=e.target.closest("[data-del]"); if(b) deleteScore(b.dataset.del,b); });
+$("resultsList").addEventListener("click",e=>{
+  const s=e.target.closest("[data-setsrc]"); if(s) return setSource(s);
+  const b=e.target.closest("[data-del]"); if(b) deleteScore(b.dataset.del,b);
+});
 
 /* ---------- admin sign in ---------- */
 $("adminLink").onclick=async()=>{
