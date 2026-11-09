@@ -174,6 +174,8 @@ nav button.on{color:#fff;border-color:var(--brand2)}
 .radar,th .ic,.rate .lbl .ic,.bar .l .ic{color:var(--brand2)}
 a,.linkbtn{color:var(--brand2)}
 .probs{color:var(--bad)}
+label.chk{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin:14px 0;cursor:pointer}
+label.chk input{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:var(--brand2)}
 .row.openable{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px}
 .row.openable:hover{background:var(--chip)}
 .resnote{font-size:13px;color:var(--muted);font-style:italic;margin:-2px 0 8px 148px}
@@ -314,7 +316,7 @@ tbody tr:hover td:nth-child(2){background:var(--chip)}
   </section>
 </main>
 
-<footer><button id="previewLink" hidden>Preview as a member of the public</button> &nbsp; <button id="adminLink">Admin sign in</button></footer>
+<footer><button id="notifyLink" hidden>My notifications</button> &nbsp; <button id="previewLink" hidden>Preview as a member of the public</button> &nbsp; <button id="adminLink">Admin sign in</button></footer>
 
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
@@ -830,6 +832,29 @@ function mergeRace(id){
   };
 }
 
+/* ---------- admin: my email notifications ---------- */
+$("notifyLink").onclick=()=>openNotify();
+function openNotify(){
+  const p=S.prefs||{email:S.session?.user?.email||"", daily:true, weekly:true};
+  openModal(`<h2>My notifications</h2>
+    <p class="muted">Choose which emails you get. These are your own settings; each admin sets theirs.</p>
+    <label>Send my emails to</label><input id="nEmail" type="email" maxlength="200" value="${esc(p.email)}">
+    <label class="chk"><input type="checkbox" id="nDaily" ${p.daily?"checked":""}> <span><b>Daily review alert</b><br><span class="muted">Every morning, only on days when scores or race suggestions are waiting.</span></span></label>
+    <label class="chk"><input type="checkbox" id="nWeekly" ${p.weekly?"checked":""}> <span><b>Weekly summary</b><br><span class="muted">Fridays around noon: everything from the week, with all the notes.</span></span></label>
+    ${S.prefs?"":`<p class="muted">Not saved yet. Until any admin saves their choices, both emails go to the site owner’s Gmail.</p>`}
+    <p><button class="btn" id="nSave">Save</button></p>`);
+  $("nSave").onclick=async()=>{
+    const email=$("nEmail").value.trim();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Enter a valid email address");
+    $("nSave").disabled=true;
+    const row={user_id:uid(), email, daily:$("nDaily").checked, weekly:$("nWeekly").checked, updated_at:new Date().toISOString()};
+    const {error}=await S.sb.from("admin_prefs").upsert(row,{onConflict:"user_id"});
+    $("nSave").disabled=false;
+    if(error) return toast("Couldn't save: "+error.message);
+    S.prefs=row; closeModal(); toast("Notification settings saved"); render();
+  };
+}
+
 /* ---------- admin: what's new since last visit ---------- */
 const pubTime = o => new Date(o.reviewed_at || o.created_at).getTime() || 0;
 const isNew = t => S.prevSeen!=null && t > S.prevSeen;
@@ -853,12 +878,15 @@ function renderSummary(){
   if(S.queue.length) lines.push(`<div>• <b>${pl(S.queue.length,"score")}</b> waiting for review${newQ?` (${newQ} new)`:""} <button class="linkbtn" data-go="review">Review</button></div>`);
   if(S.requests.length) lines.push(`<div>• <b>${pl(S.requests.length,"race suggestion")}</b>${newR?` (${newR} new)`:""} <button class="linkbtn" data-go="manageraces">Manage races</button></div>`);
   lines.push(`<div>• ${pub?`<b>${pl(pub,"score")}</b> published`:"No scores published"} since then${pub?` <button class="linkbtn" data-go="results">See them</button>`:""}</div>`);
+  const p=S.prefs;
+  lines.push(`<div class="muted" style="margin-top:8px">Email alerts: ${p ? `daily ${p.daily?"on":"off"}, weekly ${p.weekly?"on":"off"}` : "not set up yet"} · <button class="linkbtn" data-notify>Change</button></div>`);
   box.innerHTML=`<button class="x" data-close-summary aria-label="Hide">×</button>
     <b class="h">${S.firstVisit?"In the last 7 days":`Since your last visit (${fmtWhen(S.prevSeen)})`}</b>${lines.join("")}`;
   box.hidden=false;
 }
 $("adminSummary").addEventListener("click",e=>{
   if(e.target.closest("[data-close-summary]")){ S.summaryClosed=true; $("adminSummary").hidden=true; return; }
+  if(e.target.closest("[data-notify]")) return openNotify();
   const g=e.target.closest("[data-go]"); if(!g) return;
   if(g.dataset.go==="results"){ $("resWhen").value="since"; $("resStatus").value="approved"; }
   showTab(g.dataset.go);
@@ -929,7 +957,7 @@ function openResult(id){
 
 /* ---------- admin sign in ---------- */
 $("adminLink").onclick=async()=>{
-  if(S.realAdmin){ S.prevSeen=null; S.summaryClosed=false; S.preview=false; $("previewBar").hidden=true; await S.sb.auth.signOut(); showTab("races"); return; }
+  if(S.realAdmin){ S.prefs=undefined; S.prevSeen=null; S.summaryClosed=false; S.preview=false; $("previewBar").hidden=true; await S.sb.auth.signOut(); showTab("races"); return; }
   openModal(`<h2>Admin sign in</h2>
     <label>Email</label><input id="aEmail" type="email" autocomplete="username">
     <label>Password</label><input id="aPass" type="password" autocomplete="current-password">
@@ -972,6 +1000,7 @@ function render(){
     : "No account needed. Your score goes to an admin for review, then appears when people include verified public scores.";
   document.querySelectorAll(".adminOnly").forEach(b=>b.hidden=!S.isAdmin);
   $("previewLink").hidden = !S.realAdmin || !!S.preview;
+  $("notifyLink").hidden = !S.realAdmin || !!S.preview;
   $("adminLink").textContent = S.realAdmin ? "Sign out (admin)" : "Admin sign in";
   renderTable(); renderChecks(); renderMine();
   if(S.isAdmin){ renderQueue(); renderRequests(); renderRaceAdmin(); renderResults(); }
@@ -997,6 +1026,7 @@ async function loadAll(){
       S.sb.from("race_requests").select("*").order("created_at")
     ]);
     S.queue=qq.data||[]; S.adminAll=aa.data||[]; S.requests=rq.data||[];
+    if(S.prefs===undefined){ const {data}=await S.sb.from("admin_prefs").select("*").eq("user_id",uid()).maybeSingle(); S.prefs=data||null; }
     markVisit();
   } else { S.queue=[]; S.adminAll=[]; S.requests=[]; }
   render();
