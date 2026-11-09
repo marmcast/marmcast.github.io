@@ -194,6 +194,10 @@ table.dtl th{color:var(--muted);font-weight:600;width:130px;cursor:default}
 .summary div{margin:4px 0}
 .summary .x{position:absolute;top:8px;right:10px;background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer}
 .pill.new{background:var(--brand2);color:#061006}
+.pill.flag{background:rgba(255,92,92,.18);color:#ff9a9a}
+.item.flagged{border-left:3px solid #ff5c5c}
+.flagline{color:#ff9a9a;font-size:13px}
+.checks .i.bad{color:#ff5c5c}
 th:first-child .ic{margin:0 auto 3px}
 th.rankcol,td.rankcol{min-width:52px !important;width:52px;text-align:center !important;padding-left:6px;padding-right:6px}
 th:nth-child(2),td:nth-child(2){text-align:left;position:sticky;left:52px;background:var(--card);z-index:1;min-width:150px;white-space:normal}
@@ -685,6 +689,12 @@ function checkSubmission(){
     : official ? S.scores.some(o=>o.race_id===raceId && o.year===year && o.source==="admin" && (o.display_name||"").toLowerCase()===officialName().toLowerCase())
     : !(S.isAdmin && S.as==="public") && S.mine.some(m=>m.race_id===raceId && m.year===year && !m.on_behalf);
   C.push({show:true, ok:!dup, msg: dup ? (official ? `${officialName()} already has an official score for this race in ${year}` : `You’ve already scored this race for ${year}`) : "One score per person per race per year"});
+  if(!S.isAdmin){
+    const nm=$("sName").value.trim();
+    C.push({show:true, ok:!reservedName(nm), msg:"That name is reserved for the MARMCast team. Please use your own name or nickname"});
+    const waiting=S.mine.filter(m=>m.status==="pending").length;
+    C.push({show:true, ok:waiting<PENDING_MAX, msg:`You have ${waiting} scores waiting for review. You can send more once an admin has checked them`});
+  }
   if(all && raceId && !S.isAdmin){
     const off=aggregate(S.scores.filter(o=>o.race_id===raceId && o.source==="admin"));
     if(off.n){ const far=CATS.filter(c=>c.k!=="performance" && off.cats[c.k]!=null && Math.abs(S.rates[c.k]-off.cats[c.k])>=2).length;
@@ -743,6 +753,27 @@ function renderMine(){
 }
 $("mineList").addEventListener("click",e=>{ const m=e.target.closest("[data-mine]"); if(m) openResult(m.dataset.mine, true); });
 
+/* ---------- abuse guards ---------- */
+const PENDING_MAX = 5;
+// Names only the MARMCast team can use (public "Tim Smith" is fine; "Tim", "Andy", "Marm", "Goldsby" are not)
+function reservedName(n){
+  const s=String(n||"").toLowerCase(); if(!s.trim()) return false;
+  if(/marm|goldsby|admin|official/.test(s)) return true;
+  return /\b(tim|andy)\b/.test(s) && !s.replace(/[^a-z]+/g," ").replace(/\b(tim|andy|and|the)\b/g,"").trim();
+}
+// Flags for the review queue: possible swearing or web links. A flag is a prompt to check, not a block.
+const SWEARS = /\b(f+u+c+k\w*|f\W?ck\w*|fck\w*|sh[i1!]+t\w*|c+u+n+t\w*|bastard\w*|bollock\w*|wank\w*|twat\w*|prick\w*|piss\w*|arse(hole)?s?|ass(hole)?s?|bitch\w*|dick(head)?s?|cock|cocks|slag\w*|slut\w*|whore\w*|tosser\w*|bell ?end\w*|knob(head)?s?|nob(head)?s?|nigg\w*|fag\w*|retard\w*|spastic\w*|spaz\w*|paki\w*|bloody hell|bugger\w*|sod off)\b/i;
+const LINKS = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|co\.uk|org\.uk|net|org|io|ru|xyz|info|biz|uk|ly|me)\b)/i;
+function textFlags(fields){ // fields: [[label, text], ...]
+  const out=[];
+  const sw=fields.filter(([,t])=>t && SWEARS.test(String(t).replace(/[1!]/g,"i").replace(/0/g,"o").replace(/[@4]/g,"a").replace(/\$/g,"s").replace(/3/g,"e"))).map(([l])=>l);
+  const ln=fields.filter(([,t])=>t && LINKS.test(t)).map(([l])=>l);
+  if(sw.length) out.push(`Possible swearing in: ${sw.join(", ")}`);
+  if(ln.length) out.push(`Contains a web link in: ${ln.join(", ")}`);
+  return out;
+}
+function scoreFlags(p){ return textFlags([["name",p.display_name], ...CATS.map(c=>[`${c.s} note`, p[c.k+"_note"]])]); }
+
 /* ---------- admin: review queue ---------- */
 function renderQueue(){
   $("qcount").textContent = S.queue.length ? `(${S.queue.length})` : "";
@@ -752,11 +783,12 @@ function renderQueue(){
     const off=aggregate(S.scores.filter(o=>o.race_id===p.race_id && o.source==="admin"));
     if(off.n){ const far=CATS.filter(c=>c.k!=="performance" && off.cats[c.k]!=null && Math.abs(p[c.k]-off.cats[c.k])>=2); if(far.length>=2) warns.push(`2+ points from official average on: ${far.map(c=>c.s).join(", ")}`); }
     else warns.push("No official scores yet to compare against");
-    return `<div class="item" data-id="${esc(p.id)}">
-      <div class="flex"><b>${esc(r?raceLabel(r):(rq?raceLabel(rq):"Unknown race"))}</b>${isNew(new Date(p.created_at).getTime())?`<span class="pill new">New</span>`:""}${rq?`<span class="pill pending">New race</span>`:""}<span class="muted">${p.year} · ${esc(p.display_name||"Runner")}</span></div>
+    const flags=[...scoreFlags(p), ...(rq?textFlags([["race name",rq.name],["race town",rq.city],["organiser",rq.organiser],["race note",rq.note]]):[])];
+    return `<div class="item${flags.length?" flagged":""}" data-id="${esc(p.id)}">
+      <div class="flex"><b>${esc(r?raceLabel(r):(rq?raceLabel(rq):"Unknown race"))}</b>${flags.length?`<span class="pill flag">Check this</span>`:""}${isNew(new Date(p.created_at).getTime())?`<span class="pill new">New</span>`:""}${rq?`<span class="pill pending">New race</span>`:""}<span class="muted">${p.year} · ${esc(p.display_name||"Runner")}</span></div>
       ${rq?`<div class="similar">This score came with a new race. <button class="linkbtn" data-goraces>Add or link the race in Manage races</button> first. The score then comes back here to approve.</div>`:""}
       ${CATS.map(c=>`<div class="muted" style="margin:2px 0">${c.s}: <b>${p[c.k]}</b>${p[c.k+"_note"]?` · ${esc(p[c.k+"_note"])}`:""}</div>`).join("")}
-      <ul class="checks">${warns.length?warns.map(w=>`<li><span class="i wa">!</span>${esc(w)}</li>`).join(""):`<li><span class="i ok">✓</span>No warnings</li>`}</ul>
+      <ul class="checks">${flags.map(f=>`<li class="flagline"><span class="i bad">✕</span>${esc(f)}</li>`).join("")}${warns.length?warns.map(w=>`<li><span class="i wa">!</span>${esc(w)}</li>`).join(""):`<li><span class="i ok">✓</span>No warnings</li>`}</ul>
       <input class="reason" placeholder="Note to submitter if rejecting (optional)" style="margin:6px 0">
       <div class="flex"><button class="btn sm" data-act="approve" ${rq?"disabled":""}>Approve</button><button class="btn ghost sm" data-act="approveoff" ${rq?"disabled":""}>Approve as official</button><button class="btn bad sm" data-act="reject">Reject</button><button class="btn ghost sm" data-act="delete">Delete</button></div>
     </div>`;
@@ -798,9 +830,11 @@ function renderRequests(){
   $("requestList").innerHTML = S.requests.map(q=>{
     const hits=findSimilar(q), n=S.queue.filter(x=>x.request_id===q.id).length;
     const opts=[...hits.map(h=>h.r), ...S.races.filter(r=>!hits.some(h=>h.r.id===r.id)).sort((a,b)=>a.name.localeCompare(b.name))];
-    return `<div class="item" data-id="${esc(q.id)}">${isNew(new Date(q.created_at).getTime())?`<span class="pill new">New</span>`:""}<b>${esc(q.name)}</b> <span class="muted">(${esc(q.distance)}, ${place(q)}${q.organiser?` · ${esc(q.organiser)}`:""})${n?` · ${n} score${n===1?"":"s"} waiting`:""}</span>
+    const flags=textFlags([["race name",q.name],["town",q.city],["organiser",q.organiser],["note",q.note]]);
+    return `<div class="item${flags.length?" flagged":""}" data-id="${esc(q.id)}">${flags.length?`<span class="pill flag">Check this</span>`:""}${isNew(new Date(q.created_at).getTime())?`<span class="pill new">New</span>`:""}<b>${esc(q.name)}</b> <span class="muted">(${esc(q.distance)}, ${place(q)}${q.organiser?` · ${esc(q.organiser)}`:""})${n?` · ${n} score${n===1?"":"s"} waiting`:""}</span>
       ${safeUrl(q.website)?`<div class="muted"><a href="${esc(safeUrl(q.website))}" target="_blank" rel="noopener">${esc(domainOf(q.website))}</a></div>`:""}
       ${q.note?`<div class="muted">“${esc(q.note)}”</div>`:""}
+      ${flags.map(f=>`<div class="flagline">✕ ${esc(f)}</div>`).join("")}
       ${hits.length?`<div class="similar">Possible existing match: ${hits.map(h=>`${esc(h.r.name)} (${esc(h.r.distance)}, ${place(h.r)})`).join("; ")}</div>`:""}
       <div class="flex" style="margin-top:8px"><button class="btn sm" data-use>Add as a new race</button><button class="btn ghost sm" data-dismiss>Dismiss${n?` (deletes ${n} score${n===1?"":"s"})`:""}</button></div>
       ${opts.length?`<div class="flex" style="margin-top:8px"><select class="linkto" style="flex:1;min-width:180px"><option value="">Or it’s an existing race…</option>${opts.map(r=>`<option value="${esc(r.id)}">${esc(raceLabel(r))}</option>`).join("")}</select><button class="btn ghost sm" data-link>It’s this existing race</button></div>`:""}
@@ -1036,6 +1070,7 @@ const OFFICIAL_RUNNERS = ["Tim (Marm)", "Andy Goldsby", "Tim & Andy (joint)"];
 $("sWho").innerHTML = `<option value="">Choose who ran it…</option>` + OFFICIAL_RUNNERS.map(n=>`<option>${esc(n)}</option>`).join("") + `<option value="__guest">Someone else (guest)…</option>`;
 $("sWho").addEventListener("input",()=>{ $("sGuest").hidden = $("sWho").value!=="__guest"; renderChecks(); });
 $("sGuest").addEventListener("input",renderChecks);
+$("sName").addEventListener("input",renderChecks);
 function officialName(){
   const w=$("sWho").value;
   if(w!=="__guest") return w;
