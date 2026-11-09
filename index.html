@@ -1009,7 +1009,7 @@ function openResult(id, mineView){
 
 /* ---------- admin sign in ---------- */
 $("adminLink").onclick=async()=>{
-  if(S.realAdmin){ S.prefs=undefined; S.prevSeen=null; S.summaryClosed=false; S.preview=false; $("previewBar").hidden=true; await S.sb.auth.signOut(); showTab("races"); return; }
+  if(S.realAdmin){ S.prefs=undefined; S.prevSeen=null; S.summaryClosed=false; S.preview=false; $("previewBar").hidden=true; await S.sb.auth.signOut({scope:"local"}); /* this device only */ showTab("races"); return; }
   openModal(`<h2>Admin sign in</h2>
     <label>Email</label><input id="aEmail" type="email" autocomplete="username">
     <label>Password</label><input id="aPass" type="password" autocomplete="current-password">
