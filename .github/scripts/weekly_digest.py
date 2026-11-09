@@ -1,16 +1,14 @@
-"""MARMCast Race Ladder: weekly summary email.
+"""MARMCast Race Ladder: admin emails (weekly summary and daily review alert).
 
-Run by .github/workflows/weekly-summary.yml every Friday. It reads the last 7 days of
-activity from Supabase and emails a readable summary to you through Gmail.
+  python3 weekly_digest.py           -> weekly summary   (weekly-summary.yml, Fridays)
+  python3 weekly_digest.py daily     -> daily review alert (daily-alert.yml, every morning; only sends if something is waiting)
 
-Secrets it needs (GitHub > Settings > Secrets and variables > Actions):
-  SUPABASE_URL          your project URL
-  SUPABASE_SECRET_KEY   Supabase "secret" key (sb_secret_...). Only ever stored here, never on the website.
-  GMAIL_ADDRESS         the Gmail address that sends (and receives) the summary
-  GMAIL_APP_PASSWORD    a Gmail app password (not your normal password)
-Optional:
-  SUMMARY_TO            send to a different address (comma-separate several)
-Nothing from the database is printed to the log (the log is public on a public repository).
+Each admin chooses which emails they get on the site (footer > My notifications).
+If no admin has saved their choices yet, both emails go to SUMMARY_TO, or else GMAIL_ADDRESS.
+
+Secrets (GitHub > Settings > Secrets and variables > Actions):
+  SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_...), GMAIL_ADDRESS, GMAIL_APP_PASSWORD; optional SUMMARY_TO.
+Nothing from the database (and no email address) is printed to the log, which is public on a public repository.
 """
 import os, sys, json, ssl, smtplib, urllib.request, urllib.parse, html
 from datetime import datetime, timedelta, timezone
@@ -26,7 +24,10 @@ def fetch(path, params):
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
-        sys.exit(f"Supabase refused the request for {path}: HTTP {e.code}. Check SUPABASE_URL and SUPABASE_SECRET_KEY.")
+        try: why = json.loads(e.read()).get("message", "")   # Supabase's own error text (never contains data)
+        except Exception: why = ""
+        sys.exit(f"Supabase refused the request for {path}: HTTP {e.code}. {why}\n"
+                 "401 = wrong key (use the sb_secret_ key). 403 'permission denied' = run the service_role grant lines from schema.sql.")
 
 def esc(x): return html.escape(str(x if x is not None else ""))
 
@@ -85,26 +86,74 @@ def build(scores, races, requests, site, since):
     subject = f"MARMCast weekly: {len(pending)} to review, {len(published)} published, {len(races)} new race(s)"
     return subject, "".join(parts)
 
-def main():
-    since = datetime.now(timezone.utc) - timedelta(days=DAYS)
-    iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
-    sel = "*,races(name,city,country,distance,organiser),race_requests(name,city,country,distance,organiser)"
-    scores = fetch("scores", {"select": sel, "or": f'(created_at.gte."{iso}",reviewed_at.gte."{iso}")', "order": "created_at.desc"})
-    races = fetch("races", {"select": "name,city,country,distance,organiser,created_at", "created_at": f"gte.{iso}", "order": "created_at.desc"})
-    requests = fetch("race_requests", {"select": "name,city,country,distance,organiser,created_at", "order": "created_at.desc"})
-    subject, body = build(scores, races, requests, os.environ.get("SITE", ""), since)
+def recipients(kind):
+    """Admins who switched this email on. Falls back to SUMMARY_TO / GMAIL_ADDRESS if nobody has saved choices yet."""
+    admins = {a["user_id"] for a in fetch("admins", {"select": "user_id"})}
+    prefs = [p for p in fetch("admin_prefs", {"select": "user_id,email,daily,weekly"}) if p["user_id"] in admins]
+    if prefs:
+        return sorted({p["email"] for p in prefs if p.get(kind)})
+    fallback = os.environ.get("SUMMARY_TO") or os.environ.get("GMAIL_ADDRESS") or ""
+    return [a.strip() for a in fallback.split(",") if a.strip()]
 
-    if os.environ.get("DRY_RUN"):
-        open("weekly_summary_preview.html", "w").write(body); print("Dry run: wrote weekly_summary_preview.html"); return
+def build_daily(pending, requests, site):
+    def line(o):
+        race = o.get("races") or o.get("race_requests")
+        total = sum(o.get(k) or 0 for k, _ in CATS)
+        new = ' <span style="background:#fef3c7;color:#92400e;border-radius:10px;padding:1px 7px;font-size:12px">new race</span>' if not o.get("races") else ""
+        who = esc(o.get("display_name") or "Runner")
+        return f'<li style="margin:6px 0">{race_label(race)}{new}<br><span style="color:#555;font-size:13px">{esc(o.get("year"))} · {who} · overall {total}/20 · sent {when(o.get("created_at"))}</span></li>'
+    parts = [
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto;color:#111">',
+        '<div style="background:#000;color:#fff;padding:14px 16px;border-radius:10px"><div style="font-size:20px;font-weight:900">MARMCAST <span style="color:#5ddb56">RACE LADDER</span></div>'
+        '<div style="color:#ccc;font-size:13px">Daily review alert</div></div>',
+        f'<p style="font-size:15px">Waiting for an admin: <b>{len(pending)}</b> score(s) to review and <b>{len(requests)}</b> race suggestion(s).</p>']
+    if pending: parts.append('<h2 style="font-size:17px;border-bottom:2px solid #5ddb56;padding-bottom:4px">Scores to review</h2><ul style="padding-left:18px">' + "".join(line(o) for o in pending) + '</ul>')
+    if requests: parts.append('<h2 style="font-size:17px;border-bottom:2px solid #5ddb56;padding-bottom:4px">Race suggestions</h2><ul style="padding-left:18px">' + "".join(f'<li>{race_label(q)} · suggested {when(q.get("created_at"))}</li>' for q in requests) + '</ul>')
+    parts.append(f'<p style="margin-top:20px"><a href="{esc(site)}" style="background:#5ddb56;color:#061006;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">Review them now</a></p>'
+                 '<p style="color:#888;font-size:12px">You get this because the daily alert is switched on in My notifications on the site.</p></div>')
+    return f"MARMCast: {len(pending)} score(s) to review, {len(requests)} race suggestion(s)", "".join(parts)
+
+def send(to, subject, body):
     sender = os.environ["GMAIL_ADDRESS"]
-    to = [a.strip() for a in (os.environ.get("SUMMARY_TO") or sender).split(",") if a.strip()]
-    msg = EmailMessage(); msg["Subject"] = subject; msg["From"] = f"MARMCast Race Ladder <{sender}>"; msg["To"] = ", ".join(to)
-    msg.set_content("Your weekly MARMCast Race Ladder summary. Open this email in an app that shows HTML.")
-    msg.add_alternative(body, subtype="html")
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as s:
         s.login(sender, os.environ["GMAIL_APP_PASSWORD"].replace(" ", ""))
-        s.send_message(msg)
-    print(f"Weekly summary sent to {len(to)} address(es).")
+        for addr in to:   # one email each, so admins don't see each other's addresses
+            msg = EmailMessage(); msg["Subject"] = subject; msg["From"] = f"MARMCast Race Ladder <{sender}>"; msg["To"] = addr
+            msg.set_content("MARMCast Race Ladder update. Open this email in an app that shows HTML.")
+            msg.add_alternative(body, subtype="html")
+            s.send_message(msg)
+
+def main():
+    mode = (sys.argv[1] if len(sys.argv) > 1 else "weekly").lower()
+    kind = "daily" if mode == "daily" else "weekly"
+    need = ("SUPABASE_URL", "SUPABASE_SECRET_KEY") + (() if os.environ.get("DRY_RUN") else ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"))
+    missing = [k for k in need if not os.environ.get(k)]
+    if missing:
+        sys.exit("Missing GitHub secret(s): " + ", ".join(missing) + ". Add them under Settings > Secrets and variables > Actions.")
+    site = os.environ.get("SITE", "")
+    sel = "*,races(name,city,country,distance,organiser),race_requests(name,city,country,distance,organiser)"
+
+    if kind == "daily":
+        pending = fetch("scores", {"select": sel, "status": "eq.pending", "order": "created_at.asc"})
+        requests = fetch("race_requests", {"select": "name,city,country,distance,organiser,created_at", "order": "created_at.asc"})
+        if not pending and not requests:
+            print("Nothing waiting for review today, so no email."); return
+        subject, body = build_daily(pending, requests, site)
+    else:
+        since = datetime.now(timezone.utc) - timedelta(days=DAYS)
+        iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
+        scores = fetch("scores", {"select": sel, "or": f'(created_at.gte."{iso}",reviewed_at.gte."{iso}")', "order": "created_at.desc"})
+        races = fetch("races", {"select": "name,city,country,distance,organiser,created_at", "created_at": f"gte.{iso}", "order": "created_at.desc"})
+        requests = fetch("race_requests", {"select": "name,city,country,distance,organiser,created_at", "order": "created_at.desc"})
+        subject, body = build(scores, races, requests, site, since)
+
+    to = recipients(kind)
+    if os.environ.get("DRY_RUN"):
+        open(f"{kind}_preview.html", "w").write(body); print(f"Dry run: wrote {kind}_preview.html for {len(to)} recipient(s)"); return
+    if not to:
+        print(f"No admin has the {kind} email switched on, so nothing was sent."); return
+    send(to, subject, body)
+    print(f"{kind.capitalize()} email sent to {len(to)} admin(s).")
 
 if __name__ == "__main__":
     main()
