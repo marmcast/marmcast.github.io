@@ -174,6 +174,12 @@ nav button.on{color:#fff;border-color:var(--brand2)}
 .radar,th .ic,.rate .lbl .ic,.bar .l .ic{color:var(--brand2)}
 a,.linkbtn{color:var(--brand2)}
 .probs{color:var(--bad)}
+.review.openable{cursor:pointer;border-radius:0 8px 8px 0;padding:6px 10px}
+.review.openable:hover{background:var(--chip)}
+.dots button.zero{border-style:dashed}
+.whos{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.who{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);line-height:1.5}
+.who.pub{--c:#c4a3d6}
 label.chk{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin:14px 0;cursor:pointer}
 label.chk input{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:var(--brand2)}
 .row.openable{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px}
@@ -227,6 +233,7 @@ tbody tr:hover td:nth-child(2){background:var(--chip)}
       <select id="fCountry"><option value="">All countries</option></select>
       <select id="fDist"><option value="">All distances</option></select>
       <select id="fYear"><option value="">All years</option></select>
+      <select id="fRunner"><option value="">All runners</option></select>
     </div>
     <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
     <p class="muted" id="legend"></p>
@@ -258,7 +265,7 @@ tbody tr:hover td:nth-child(2){background:var(--chip)}
         <div><label>Year you ran it</label><select id="sYear"></select></div>
         <div><label id="nameLbl">Your name or nickname <span class="muted">(optional)</span></label><input id="sName" maxlength="40"></div>
       </div>
-      <h3>Scores (1 = poor, 5 = excellent). Notes are optional</h3>
+      <h3 id="scaleHdr">Scores (1 = poor, 5 = excellent). Notes are optional</h3>
       <div id="sRates"></div>
             <div id="sChecks" class="probs"></div>
       <button class="btn" id="sBtn" disabled>Submit</button>
@@ -414,7 +421,7 @@ const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
 const fmt = v => v==null ? "–" : v.toFixed(1);
 function safeUrl(u){ try{ const x=new URL(String(u)); return x.protocol==="https:" ? x.href : null; }catch{ return null; } }
 function toast(m){ const t=$("toast"); t.textContent=m; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2800); }
-function heat(v){ if(v==null) return ""; const h=Math.round(((v-1)/4)*130); return `background:hsla(${h},70%,45%,.18)`; }
+function heat(v){ if(v==null) return ""; const h=Math.max(0,Math.round(((v-1)/4)*130)); return `background:hsla(${h},70%,45%,.18)`; }
 function status(msg){ const b=$("status"); b.hidden=!msg; b.textContent=msg||""; }
 const uid = () => S.session?.user?.id || null;
 const place = r => `${esc(r.city)}, ${esc(countryName(r.country))}`;
@@ -494,8 +501,9 @@ DISTANCES.forEach(d=>$("fDist").add(new Option(d,d)));
 YEARS.forEach(y=>{ $("fYear").add(new Option(y,y)); $("sYear").add(new Option(y,y)); });
 $("srcSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; S.src=b.dataset.src; [...$("srcSeg").children].forEach(x=>x.classList.toggle("on",x===b)); renderTable(); });
 ["q","fDist","fYear","fCountry"].forEach(id=>$(id).addEventListener("input",renderTable));
+$("fRunner").addEventListener("input",()=>{ S.runner=$("fRunner").value; renderTable(); });
 $("sRates").innerHTML = CATS.map(c=>`<div class="rate"><div class="top"><div class="lbl">${icon(c.k)}<span>${c.s}<small>${c.d}</small></span></div>
-  <div class="dots" data-k="${c.k}">${[1,2,3,4,5].map(n=>`<button type="button" data-n="${n}">${n}</button>`).join("")}</div></div>
+  <div class="dots" data-k="${c.k}">${[0,1,2,3,4,5].map(n=>`<button type="button" data-n="${n}"${n===0?' class="zero" hidden title="Only for official scores"':""}>${n}</button>`).join("")}</div></div>
   <input id="note-${c.k}" maxlength="500" placeholder="Notes on ${c.s.toLowerCase()} (optional)"></div>`).join("");
 $("sRates").addEventListener("click",e=>{ const b=e.target.closest("button[data-n]"); if(!b) return;
   S.rates[b.parentElement.dataset.k]=+b.dataset.n;
@@ -508,7 +516,30 @@ bindSimilar("a", null);
 ["resFilter","resStatus","resWhen"].forEach(id=>$(id).addEventListener("input",renderResults));
 
 /* ---------- scoring ---------- */
-const included = () => S.scores.filter(o => S.src==="all" || o.source==="admin");
+// Who ran it: official scores carry the runner's name, e.g. "Tim (Marm)", "Andy Goldsby", "Tim & Andy (joint)".
+// HOSTS get their own name tag; any other official runner (e.g. a guest) is tagged "Other".
+const HOSTS = ["Tim", "Andy"];
+function runnersOf(o){
+  if(o.source!=="admin") return [];
+  const firsts = String(o.display_name||"").split(/\s*(?:&|\+|,|\band\b)\s*/i)
+    .map(x=>x.replace(/\(.*?\)/g,"").trim().split(/\s+/)[0]).filter(x=>x && !/^joint$/i.test(x));
+  const out = firsts.map(f => HOSTS.find(h=>h.toLowerCase()===f.toLowerCase()) || "Other");
+  return [...new Set(out.length?out:["Other"])];
+}
+function officialRunners(){   // hosts first (in HOSTS order), then Other, only those with scores
+  const seen=new Set(S.scores.flatMap(runnersOf));
+  return [...HOSTS, "Other"].filter(x=>seen.has(x));
+}
+const RUNNER_COLOURS=["#5ddb56","#f0b13a","#60a5fa","#f472b6"];
+const runnerColour = name => name==="Other" ? "#9ca3af" : RUNNER_COLOURS[Math.max(0,HOSTS.indexOf(name)) % RUNNER_COLOURS.length];
+const chip = (name,title) => `<span class="who" style="--c:${runnerColour(name)}"${title?` title="${esc(title)}"`:""}>${esc(name)}</span>`;
+function whoChips(list){
+  const order=[...HOSTS,"Other"];
+  const names=[...new Set(list.flatMap(runnersOf))].sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  const others=[...new Set(list.filter(o=>runnersOf(o).includes("Other")).map(o=>o.display_name||"Admin"))].join(", ");
+  return names.map(n=>chip(n, n==="Other"?others:"")).join("") + (list.filter(o=>o.source!=="admin").length?`<span class="who pub">+${list.filter(o=>o.source!=="admin").length} public</span>`:"");
+}
+const included = () => S.scores.filter(o => S.runner ? runnersOf(o).includes(S.runner) : (S.src==="all" || o.source==="admin"));
 const MAXT = 5*CATS.length;   // overall is a total out of 20
 const fmtT = v => v==null ? "–" : String(Math.round(v*10)/10);
 function aggregate(list){
@@ -524,7 +555,7 @@ function renderTable(){
   const q=$("q").value.trim(), dist=$("fDist").value, yr=$("fYear").value, ctry=$("fCountry").value;
   const scores = included().filter(o=>!yr || String(o.year)===yr);
   const rows = S.races.filter(r=>raceMatches(r,q) && (!dist || r.distance===dist) && (!ctry || r.country===ctry))
-    .map(r=>({r, a:aggregate(scores.filter(o=>o.race_id===r.id))}))
+    .map(r=>{ const list=scores.filter(o=>o.race_id===r.id); return {r, a:aggregate(list), list}; })
     .filter(x=>x.a.n>0);   // only races that have scores in this view
   // Rank: position among every scored race in this view (Official / + Verified, and year), by the
   // column being sorted (Overall when sorting by name or rank). Highest score is always rank 1.
@@ -553,14 +584,19 @@ function renderTable(){
   const tb=$("tbl").tBodies[0], span=CATS.length+4;
   if(!S.races.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${S.sb?"No races yet.":"Loading…"}</td></tr>`;
   else if(!rows.length) tb.innerHTML=`<tr><td colspan="${span}" class="empty">${(q||dist||yr||ctry) ? "No scored races match those filters." : "No scores yet. Be the first: tap <b>Submit a score</b>."}</td></tr>`;
-  else tb.innerHTML = rows.map(({r,a,rank})=>`<tr data-id="${esc(r.id)}"><td class="rankcol"><span class="rank r${rank}">${rank}</span></td>
-      <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · ${esc(r.organiser)}`:""}</div></td>
+  else tb.innerHTML = rows.map(({r,a,rank,list})=>`<tr data-id="${esc(r.id)}"><td class="rankcol"><span class="rank r${rank}">${rank}</span></td>
+      <td><div class="rname">${esc(r.name)}</div><div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · ${esc(r.organiser)}`:""}</div><div class="whos">${whoChips(list)}</div></td>
       ${CATS.map(c=>`<td><span class="sc" style="${heat(a.cats[c.k])}">${fmt(a.cats[c.k])}</span></td>`).join("")}
       <td>${a.n||"–"}</td>
       <td><span class="sc" style="font-size:14px;${heat(a.overall==null?null:a.overall/CATS.length)}">${fmtT(a.overall)}</span></td></tr>`).join("");
-  $("legend").textContent = S.src==="admin"
-    ? "Showing scores from trusted admins only. Switch to “+ Verified public” to include approved community scores."
-    : "Showing admin scores plus public scores approved by an admin.";
+  $("legend").textContent = S.runner==="Other"
+    ? "Showing official scores from runners other than the hosts (e.g. guests). Ranks are among these races."
+    : S.runner
+    ? `Showing only races ${S.runner} has scored, using ${S.runner}'s own official scores (joint reviews count for both hosts). Ranks are among ${S.runner}'s races.`
+    : S.src==="admin"
+    ? "Showing official scores only. The name tags show which host ran each race. Switch to “+ Verified public” to include approved community scores."
+    : "Showing official scores plus public scores approved by an admin.";
+  $("srcSeg").style.opacity = S.runner ? .4 : 1;
 }
 $("tbl").addEventListener("click",e=>{
   const th=e.target.closest("th[data-k]");
@@ -590,6 +626,7 @@ function openRace(id){
   openModal(`<h2>${esc(r.name)}</h2>
     <div class="muted">${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · Organised by ${esc(r.organiser)}`:""}${web?` · <a href="${esc(web)}" target="_blank" rel="noopener">Website</a>`:""}</div>
     ${r.aliases?.length?`<div class="muted">Also known as: ${esc(r.aliases.join(", "))}</div>`:""}
+    ${list.some(o=>o.source==="admin")?`<div class="whos" style="margin-top:6px"><span class="muted" style="margin-right:4px">Run by</span>${whoChips(list.filter(o=>o.source==="admin"))}</div>`:""}
     <div class="card" style="margin-top:12px">
       <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall==null?null:a.overall/CATS.length)}">${fmtT(a.overall)}</span>
       <span class="muted">out of ${MAXT}, from ${a.n} runner${a.n===1?"":"s"} (${S.src==="admin"?"official only":"official + verified public"})</span></div>
@@ -629,7 +666,7 @@ function renderRacePicker(){
 function checkSubmission(){
   const nr = S.newRace && $("nName") ? readRaceForm("n") : null;
   const raceId = nr ? "" : $("sRace").value, year=+$("sYear").value;
-  const vals=CATS.map(c=>S.rates[c.k]).filter(Boolean), all=vals.length===CATS.length;
+  const vals=CATS.map(c=>S.rates[c.k]).filter(v=>v!==undefined), all=vals.length===CATS.length;
   const C=[];
   if(nr){
     const err=validRace(nr), exact=findSimilar(nr).some(h=>h.exact);
@@ -637,7 +674,7 @@ function checkSubmission(){
     C.push({show:true, ok:!exact, msg:"That race is already listed. Tap “That’s it, use this” above"});
   } else C.push({ok:!!raceId, msg:"Race selected"});
   C.push({ok:all, msg:`All ${CATS.length} categories scored (${vals.length}/${CATS.length})`});
-  const extreme = all && new Set(vals).size===1 && (vals[0]===1 || vals[0]===5);
+  const extreme = all && new Set(vals).size===1 && [0,1,5].includes(vals[0]);
   C.push({show:true, ok:!extreme, msg: extreme ? `All ${vals[0]}s isn’t allowed. No race is perfect (or hopeless) at everything` : "Not all 1s or all 5s"});
   const dup = raceId && !(S.isAdmin && S.as==="public") && S.mine.some(m=>m.race_id===raceId && m.year===year && !m.on_behalf);
   C.push({show:true, ok:!dup, msg: dup ? `You’ve already scored this race for ${year}` : "One score per person per race per year"});
@@ -676,7 +713,7 @@ $("sBtn").onclick = async ()=>{
     if(error){
       if(requestId) await S.sb.from("race_requests").delete().eq("id",requestId);
       if(error.code==="23505") throw new Error("You’ve already scored this race for that year.");
-      if(error.code==="23514") throw new Error("All 1s or all 5s isn’t allowed.");
+      if(error.code==="23514") throw new Error("Those scores aren’t allowed (all the same at 0, 1 or 5, or a 0 on a public score).");
       throw error;
     }
     toast(S.isAdmin?(S.as==="public"?"Public score added":"Official score added"):"Submitted for review, thanks!");
@@ -690,11 +727,12 @@ $("sBtn").onclick = async ()=>{
 /* ---------- my submissions ---------- */
 function renderMine(){
   const label = m => m.status==="approved" ? (m.source==="admin"?"Official":"Approved") : m.status==="pending" ? "Awaiting review" : "Not accepted";
-  $("mineList").innerHTML = S.mine.length ? S.mine.map(m=>`<div class="review ${m.status==="approved"?m.source:""}">
+  $("mineList").innerHTML = S.mine.length ? S.mine.map(m=>`<div class="review openable ${m.status==="approved"?m.source:""}" data-mine="${esc(m.id)}">
       <span class="pill ${m.status==="approved"?m.source:m.status}">${label(m)}</span><b>${esc(raceById(m.race_id)?.name||m.race_requests?.name||"Unknown race")}</b>${!m.race_id?` <span class="muted">(new race, waiting to be added)</span>`:""} ${m.year} · overall ${fmtT(aggregate([m]).overall)}
       ${m.reject_reason?`<div class="muted">Admin note: ${esc(m.reject_reason)}</div>`:""}</div>`).join("")
     : `<div class="empty">You haven’t submitted any scores from this browser yet.</div>`;
 }
+$("mineList").addEventListener("click",e=>{ const m=e.target.closest("[data-mine]"); if(m) openResult(m.dataset.mine, true); });
 
 /* ---------- admin: review queue ---------- */
 function renderQueue(){
@@ -897,7 +935,7 @@ const srcBtn = o => o.status==="approved" ? `<button class="btn ghost sm" data-s
 async function setSource(b){
   if(!confirmTap(b, b.dataset.setsrc==="admin"?"Tap again: make official":"Tap again: make public")) return false;
   const {error}=await S.sb.from("scores").update({source:b.dataset.setsrc}).eq("id",b.dataset.id);
-  if(error){ toast("Couldn't change it: "+error.message); return false; }
+  if(error){ toast(error.code==="23514" ? "Can't make it public: it has a 0, and public scores must be 1 to 5" : "Couldn't change it: "+error.message); return false; }
   toast(b.dataset.setsrc==="admin"?"Now an official score":"Now a public score"); await loadAll(); return true;
 }
 
@@ -922,24 +960,29 @@ $("resultsList").addEventListener("click",e=>{
 });
 
 /* ---------- admin: full details of one result ---------- */
-function openResult(id){
-  const o=S.adminAll.find(x=>x.id===id) || S.queue.find(x=>x.id===id); if(!o) return;
+function openResult(id, mineView){
+  const adminView = S.isAdmin && !mineView;
+  const o=(adminView ? (S.adminAll.find(x=>x.id===id) || S.queue.find(x=>x.id===id)) : null) || S.mine.find(x=>x.id===id); if(!o) return;
   const r=raceById(o.race_id), a=aggregate([o]);
   const who=o.display_name||(o.source==="admin"?"Admin":"Runner");
-  const kind=o.status==="pending"?"Waiting for review":o.status==="rejected"?"Rejected":o.source==="admin"?"Official":"Verified public";
+  const kind = adminView
+    ? (o.status==="pending"?"Waiting for review":o.status==="rejected"?"Rejected":o.source==="admin"?"Official":"Verified public")
+    : (o.status==="pending"?"Awaiting review":o.status==="rejected"?"Not accepted":o.source==="admin"?"Official":"Published");
+  const newRace = !r && o.race_requests ? o.race_requests : null;
   const pill=o.status==="approved"?o.source:o.status;
-  const by=o.reviewed_by?(o.reviewed_by===uid()?"you":"another admin"):null;
+  const by=adminView && o.reviewed_by?(o.reviewed_by===uid()?"you":"another admin"):null;
   const detail=[
-    ["Runner", esc(who)],
+    [adminView?"Runner":"Name shown", esc(who)],
     ["Year run", esc(o.year)],
-    ["Type", esc(kind)+(o.on_behalf?" (entered by an admin)":"")],
+    ["Status", esc(kind)+(adminView && o.on_behalf?" (entered by an admin)":"")],
     ["Submitted", fmtWhen(new Date(o.created_at).getTime())],
-    o.status!=="pending" && o.reviewed_at ? [o.status==="rejected"?"Rejected":"Published", fmtWhen(new Date(o.reviewed_at).getTime())+(by?` by ${by}`:"")] : null,
-    o.reject_reason ? ["Rejection note", esc(o.reject_reason)] : null
+    o.status!=="pending" && o.reviewed_at ? [o.status==="rejected"?(adminView?"Rejected":"Reviewed"):"Published", fmtWhen(new Date(o.reviewed_at).getTime())+(by?` by ${by}`:"")] : null,
+    o.reject_reason ? [adminView?"Rejection note":"Note from the admins", esc(o.reject_reason)] : null,
+    !adminView && o.status==="pending" ? ["What happens next", newRace ? "An admin will add your race to the ladder, then review your score." : "An admin will review your score. Once approved it appears when people include verified public scores."] : null
   ].filter(Boolean);
   openModal(`<div class="flex" style="margin-bottom:6px"><span class="pill ${pill}">${kind}</span>${isNew(pubTime(o))?`<span class="pill new">New</span>`:""}</div>
-    <h2>${esc(r?.name||"Unknown race")}</h2>
-    <div class="muted">${r?`${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · ${esc(r.organiser)}`:""}`:""}</div>
+    <h2>${esc(r?.name||newRace?.name||"Unknown race")}</h2>
+    <div class="muted">${r?`${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · ${esc(r.organiser)}`:""}`:newRace?"New race, waiting to be added":""}</div>
     <div class="card" style="margin-top:12px">
       <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall/CATS.length)}">${fmtT(a.overall)}</span><span class="muted">out of ${MAXT}</span></div>
       <div class="radarwrap">${radar(a)}<div class="bars">
@@ -948,11 +991,11 @@ function openResult(id){
       </div></div>
     </div>
     <div class="card"><table class="dtl">${detail.map(([k,v])=>`<tr><th>${k}</th><td>${v}</td></tr>`).join("")}</table></div>
-    <div class="flex">${r?`<button class="btn" data-race="${esc(r.id)}">Open race page</button>`:""}${srcBtn(o)}<button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button></div>`);
+    <div class="flex">${r?`<button class="btn" data-race="${esc(r.id)}">Open race page</button>`:""}${adminView?`${srcBtn(o)}<button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button>`:""}</div>`);
   const sh=$("sheet");
   sh.querySelector("[data-race]")?.addEventListener("click",()=>openRace(r.id));
   sh.querySelector("[data-setsrc]")?.addEventListener("click",async e=>{ if(await setSource(e.currentTarget)) openResult(id); });
-  sh.querySelector("[data-del]").addEventListener("click",async e=>{ if(await deleteScore(id,e.currentTarget)) closeModal(); });
+  sh.querySelector("[data-del]")?.addEventListener("click",async e=>{ if(await deleteScore(id,e.currentTarget)) closeModal(); });
 }
 
 /* ---------- admin sign in ---------- */
@@ -981,6 +1024,11 @@ S.as="admin";
 $("asSeg").addEventListener("click",e=>{ const b=e.target.closest("button[data-as]"); if(!b) return; S.as=b.dataset.as; [...$("asSeg").children].forEach(x=>x.classList.toggle("on",x===b)); renderAs(); renderChecks(); });
 function renderAs(){
   const pub = S.isAdmin && S.as==="public";
+  // 0 is only allowed on official scores (admin, Official selected)
+  const zeroOk = S.isAdmin && S.as==="admin";
+  document.querySelectorAll("#sRates .zero").forEach(b=>b.hidden=!zeroOk);
+  $("scaleHdr").textContent = zeroOk ? "Scores (0 = a disaster, official only; 1 = poor, 5 = excellent). Notes are optional" : "Scores (1 = poor, 5 = excellent). Notes are optional";
+  if(!zeroOk) CATS.forEach(c=>{ if(S.rates[c.k]===0){ delete S.rates[c.k]; document.querySelector(`#sRates .dots[data-k="${c.k}"] .zero`)?.classList.remove("on"); } });
   $("asBox").hidden=!S.isAdmin;
   $("asHelp").textContent = pub ? "Published straight away as a verified public score. Use this to enter scores runners have sent you." : "Goes into the official results.";
   $("nameLbl").innerHTML = pub ? 'Runner’s name <span class="muted">(shown with the score)</span>' : 'Your name or nickname <span class="muted">(optional)</span>';
@@ -990,6 +1038,10 @@ function renderAs(){
 function render(){
   renderRacePicker();
   const scoredIds=new Set(S.scores.map(o=>o.race_id));
+  const curR=$("fRunner").value, runners=officialRunners();
+  $("fRunner").innerHTML=`<option value="">All runners</option>`+runners.map(n=>`<option value="${esc(n)}">${n==="Other"?"Other runners":esc(n)+"’s races"}</option>`).join("");
+  $("fRunner").hidden = runners.length<2;
+  if(runners.includes(curR)) $("fRunner").value=curR; else S.runner="";
   const present=[...new Set(S.races.filter(r=>scoredIds.has(r.id)).map(r=>r.country))].map(c=>({c,n:countryName(c)})).sort((a,b)=>a.n.localeCompare(b.n));
   const curC=$("fCountry").value;
   $("fCountry").innerHTML=`<option value="">All countries</option>`+present.map(x=>`<option value="${x.c}">${esc(x.n)}</option>`).join("");
