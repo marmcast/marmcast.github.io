@@ -523,7 +523,7 @@ bindSimilar("a", null);
 ["resFilter","resStatus","resWhen"].forEach(id=>$(id).addEventListener("input",renderResults));
 
 /* ---------- scoring ---------- */
-// Who ran it: official scores carry the runner's name, e.g. "Tim (Marm)", "Andy Goldsby", "Tim & Andy (joint)".
+// Who ran it: official scores carry the runner's name, e.g. "Tim (MARM)", "Andy Goldsby", "Tim & Andy (joint)".
 // HOSTS get their own name tag; any other official runner (e.g. a guest) is tagged "Other".
 const HOSTS = ["Tim", "Andy"];
 function runnersOf(o){
@@ -1066,7 +1066,7 @@ $("exitPreview").onclick=()=>setPreview(false);
 S.as="admin";
 $("asSeg").addEventListener("click",e=>{ const b=e.target.closest("button[data-as]"); if(!b) return; S.as=b.dataset.as; [...$("asSeg").children].forEach(x=>x.classList.toggle("on",x===b)); renderAs(); renderChecks(); });
 /* Official scores: pick the runner from a list so names stay consistent */
-const OFFICIAL_RUNNERS = ["Tim (Marm)", "Andy Goldsby", "Tim & Andy (joint)"];
+const OFFICIAL_RUNNERS = ["Tim (MARM)", "Andy Goldsby", "Tim & Andy (joint)"];
 $("sWho").innerHTML = `<option value="">Choose who ran it…</option>` + OFFICIAL_RUNNERS.map(n=>`<option>${esc(n)}</option>`).join("") + `<option value="__guest">Someone else (guest)…</option>`;
 $("sWho").addEventListener("input",()=>{ $("sGuest").hidden = $("sWho").value!=="__guest"; renderChecks(); });
 $("sGuest").addEventListener("input",renderChecks);
