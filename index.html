@@ -174,6 +174,13 @@ nav button.on{color:#fff;border-color:var(--brand2)}
 .radar,th .ic,.rate .lbl .ic,.bar .l .ic{color:var(--brand2)}
 a,.linkbtn{color:var(--brand2)}
 .probs{color:var(--bad)}
+.row.openable{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin:0 -6px}
+.row.openable:hover{background:var(--chip)}
+.resnote{font-size:13px;color:var(--muted);font-style:italic;margin:-2px 0 8px 148px}
+@media(max-width:600px){.resnote{margin-left:0}}
+table.dtl{border-collapse:collapse;width:100%}
+table.dtl th,table.dtl td{text-align:left !important;position:static !important;padding:6px 8px;border-bottom:1px solid var(--line);white-space:normal;font-size:14px;min-width:0 !important;background:none}
+table.dtl th{color:var(--muted);font-weight:600;width:130px;cursor:default}
 .summary{background:#13200f;border:1px solid #2f5a2a;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;position:relative}
 .summary b.h{display:block;margin-bottom:4px}
 .summary div{margin:4px 0}
@@ -872,7 +879,7 @@ function renderResults(){
   const from = when==="since" ? S.prevSeen : when ? Date.now()-(+when)*864e5 : 0;
   const list=S.adminAll.filter(o=>(!st || o.status===st) && pubTime(o)>=from && (!q || (raceLabel(raceById(o.race_id))+" "+(o.display_name||"")).toLowerCase().includes(q)))
     .sort((a,b)=>pubTime(b)-pubTime(a)).slice(0,300);
-  $("resultsList").innerHTML = list.length ? list.map(o=>`<div class="row"><div class="grow">
+  $("resultsList").innerHTML = list.length ? list.map(o=>`<div class="row openable" data-open="${esc(o.id)}"><div class="grow">
       <span class="pill ${o.status==="approved"?o.source:o.status}">${o.status==="approved"?(o.source==="admin"?"Official":"Public"):"Rejected"}</span>
       ${isNew(pubTime(o))?`<span class="pill new">New</span>`:""}<b>${esc(raceById(o.race_id)?.name||"Unknown race")}</b> ${o.year} · overall ${fmtT(aggregate([o]).overall)}
       <div class="muted">${esc(o.display_name||(o.source==="admin"?"Admin":"Runner"))} · ${CATS.map(c=>`${c.s} ${o[c.k]}`).join(" · ")}</div>
@@ -882,8 +889,43 @@ function renderResults(){
 }
 $("resultsList").addEventListener("click",e=>{
   const s=e.target.closest("[data-setsrc]"); if(s) return setSource(s);
-  const b=e.target.closest("[data-del]"); if(b) deleteScore(b.dataset.del,b);
+  const b=e.target.closest("[data-del]"); if(b) return deleteScore(b.dataset.del,b);
+  const row=e.target.closest("[data-open]"); if(row) openResult(row.dataset.open);
 });
+
+/* ---------- admin: full details of one result ---------- */
+function openResult(id){
+  const o=S.adminAll.find(x=>x.id===id) || S.queue.find(x=>x.id===id); if(!o) return;
+  const r=raceById(o.race_id), a=aggregate([o]);
+  const who=o.display_name||(o.source==="admin"?"Admin":"Runner");
+  const kind=o.status==="pending"?"Waiting for review":o.status==="rejected"?"Rejected":o.source==="admin"?"Official":"Verified public";
+  const pill=o.status==="approved"?o.source:o.status;
+  const by=o.reviewed_by?(o.reviewed_by===uid()?"you":"another admin"):null;
+  const detail=[
+    ["Runner", esc(who)],
+    ["Year run", esc(o.year)],
+    ["Type", esc(kind)+(o.on_behalf?" (entered by an admin)":"")],
+    ["Submitted", fmtWhen(new Date(o.created_at).getTime())],
+    o.status!=="pending" && o.reviewed_at ? [o.status==="rejected"?"Rejected":"Published", fmtWhen(new Date(o.reviewed_at).getTime())+(by?` by ${by}`:"")] : null,
+    o.reject_reason ? ["Rejection note", esc(o.reject_reason)] : null
+  ].filter(Boolean);
+  openModal(`<div class="flex" style="margin-bottom:6px"><span class="pill ${pill}">${kind}</span>${isNew(pubTime(o))?`<span class="pill new">New</span>`:""}</div>
+    <h2>${esc(r?.name||"Unknown race")}</h2>
+    <div class="muted">${r?`${place(r)} · ${esc(r.distance)} · ${esc(r.terrain)}${r.organiser?` · ${esc(r.organiser)}`:""}`:""}</div>
+    <div class="card" style="margin-top:12px">
+      <div class="flex"><span class="sc" style="font-size:22px;${heat(a.overall/CATS.length)}">${fmtT(a.overall)}</span><span class="muted">out of ${MAXT}</span></div>
+      <div class="radarwrap">${radar(a)}<div class="bars">
+        ${CATS.map(c=>`<div class="bar"><span class="l">${icon(c.k)}${c.s}</span><span class="t"><span class="f" style="width:${(o[c.k]/5)*100}%"></span></span><span class="v">${o[c.k]}</span></div>
+          ${o[c.k+"_note"]?`<div class="resnote">“${esc(o[c.k+"_note"])}”</div>`:""}`).join("")}
+      </div></div>
+    </div>
+    <div class="card"><table class="dtl">${detail.map(([k,v])=>`<tr><th>${k}</th><td>${v}</td></tr>`).join("")}</table></div>
+    <div class="flex">${r?`<button class="btn" data-race="${esc(r.id)}">Open race page</button>`:""}${srcBtn(o)}<button class="btn ghost sm" data-del="${esc(o.id)}">Delete</button></div>`);
+  const sh=$("sheet");
+  sh.querySelector("[data-race]")?.addEventListener("click",()=>openRace(r.id));
+  sh.querySelector("[data-setsrc]")?.addEventListener("click",async e=>{ if(await setSource(e.currentTarget)) openResult(id); });
+  sh.querySelector("[data-del]").addEventListener("click",async e=>{ if(await deleteScore(id,e.currentTarget)) closeModal(); });
+}
 
 /* ---------- admin sign in ---------- */
 $("adminLink").onclick=async()=>{
