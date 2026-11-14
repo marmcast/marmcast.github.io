@@ -169,6 +169,15 @@ nav button.on{color:#fff;border-color:var(--brand2)}
 .similar.block{background:#2b1414;border-color:#7f1d1d}
 .newrace{background:#1c1c1c}
 .previewbar{background:var(--purple)}
+.guide h2{margin-top:0}
+.guide h3,.guide .gh{font-size:17px;margin:26px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--brand2)}
+.guide p,.guide li{line-height:1.55}
+.guide ul,.guide ol{padding-left:22px}
+.guide li{margin:4px 0}
+.guidetable{overflow-x:auto;margin:10px 0}
+.guide table{border-collapse:collapse;width:100%;font-size:14px}
+.guide th,.guide td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+.guide th{background:var(--chip)}
 .previewbar button{color:var(--purple)}
 .toast{background:#fff;color:#000}
 .radar,th .ic,.rate .lbl .ic,.bar .l .ic{color:var(--brand2)}
@@ -219,6 +228,8 @@ tbody tr:hover td:nth-child(2){background:var(--chip)}
     <button data-tab="review" class="adminOnly" hidden>Review queue <span id="qcount"></span></button>
     <button data-tab="manageraces" class="adminOnly" hidden>Manage races <span id="rqcount"></span></button>
     <button data-tab="results" class="adminOnly" hidden>Manage results</button>
+    <button data-tab="feedback" class="adminOnly" hidden>Feedback <span id="fbcount"></span></button>
+    <button data-tab="guide" class="adminOnly" hidden>Admin guide</button>
   </nav>
 </div></header>
 
@@ -328,9 +339,202 @@ tbody tr:hover td:nth-child(2){background:var(--chip)}
       <div id="resultsList"></div>
     </div>
   </section>
+
+  <!-- FEEDBACK (admins) -->
+  <section id="tab-feedback" hidden>
+    <div class="card"><h2>Bug reports &amp; suggestions</h2>
+      <p class="muted">Sent by visitors with the button at the bottom of the page. Only admins can see these.</p>
+      <div class="controls">
+        <select id="fbStatus"><option value="new" selected>New</option><option value="done">Done</option><option value="">All</option></select>
+        <select id="fbKind"><option value="">Bugs and suggestions</option><option value="bug">Bugs only</option><option value="feature">Suggestions only</option></select>
+      </div>
+      <div id="feedbackList"></div>
+    </div>
+  </section>
+
+  <!-- ADMIN GUIDE (admins). Generated from docs/admin-guide.md by docs/build_guide.py -->
+  <section id="tab-guide" hidden>
+    <div class="card guide"><h2>Admin guide</h2>
+<!-- GUIDE START -->
+<h3>Getting started</h3>
+<p>Sign in at <strong>https://marmcast.github.io</strong> with the email and password you were given. As an admin you can score races, approve public scores, and manage races and results.</p>
+<ol>
+<li>Open the site and scroll to the bottom.</li>
+<li>Tap <strong>Admin sign in</strong>, enter your email and password, and tap <strong>Sign in</strong>.</li>
+<li>Five extra tabs appear along the top: <strong>Review queue</strong>, <strong>Manage races</strong>, <strong>Manage results</strong>, <strong>Feedback</strong> and <strong>Admin guide</strong> (plus the normal <strong>Ladder</strong>, <strong>Submit a score</strong> and <strong>My submissions</strong>).</li>
+<li>When you're done, tap <strong>Sign out (admin)</strong> at the bottom. This only signs out the device you're using.</li>
+</ol>
+<div class="guidetable"><table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>What it's for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ladder</td>
+<td>The ranked table of races everyone sees</td>
+</tr>
+<tr>
+<td>Submit a score</td>
+<td>Add an official or public score</td>
+</tr>
+<tr>
+<td>My submissions</td>
+<td>Scores you've entered</td>
+</tr>
+<tr>
+<td>Review queue</td>
+<td>Public scores waiting for approval</td>
+</tr>
+<tr>
+<td>Manage races</td>
+<td>Race suggestions, adding, editing and merging races</td>
+</tr>
+<tr>
+<td>Manage results</td>
+<td>Every score on the site, newest first</td>
+</tr>
+<tr>
+<td>Feedback</td>
+<td>Bug reports and suggestions from visitors</td>
+</tr>
+<tr>
+<td>Admin guide</td>
+<td>This guide</td>
+</tr>
+</tbody>
+</table></div>
+<p>Forgotten your password? Ask the site owner to set a new one.</p>
+<h3>The ladder</h3>
+<p>The <strong>Ladder</strong> tab ranks every race that has at least one score, best <strong>Overall</strong> first. Overall is the average of each runner's total out of 20.</p>
+<ul>
+<li><strong>Official only / + Verified public:</strong> official shows the hosts' and guests' official scores; + Verified public adds approved community scores.</li>
+<li><strong>Filters:</strong> search by race, town or country, or filter by country, distance, year or runner (Tim's races, Andy's races, Other runners).</li>
+<li><strong>Name tags</strong> under each race show who ran it: green <strong>Tim</strong>, amber <strong>Andy</strong>, grey <strong>Other</strong> (guests), and <strong>+1 public</strong> when community scores are included.</li>
+<li><strong>Rank</strong> follows the column you sort by. Tap a heading such as <strong>Thunderboxes</strong> and the best thunderboxes become rank 1. Ties share a rank.</li>
+<li><strong>Race pages:</strong> tap any race to see its radar chart, each category score, year-on-year totals and every review with its notes. Admins also get <strong>Make official / Make public</strong> and <strong>Delete</strong> buttons on each review.</li>
+</ul>
+<h3>Adding scores</h3>
+<p>Admin scores are published straight away. Choose <strong>Official</strong> for the hosts' and guests' podcast scores, or <strong>Public</strong> for scores runners have sent you.</p>
+<ol>
+<li>Open <strong>Submit a score</strong>.</li>
+<li>Under <strong>Count this score as</strong>, pick <strong>Official</strong> or <strong>Public</strong>.</li>
+<li>Find the race by typing its name, town or country, then pick it from the list. Not listed? Tap <strong>Add your race</strong> and fill in the details; as an admin, the race is created straight away.</li>
+<li>Pick the <strong>year</strong> it was run.</li>
+<li><strong>Official:</strong> choose <strong>Who ran it?</strong> (Tim (MARM), Andy Goldsby, Tim &amp; Andy (joint), or Someone else (guest) and type their name). <strong>Public:</strong> type the runner's name.</li>
+<li>Tap a score for each category, and add notes if you like.</li>
+<li>Tap <strong>Submit</strong>.</li>
+</ol>
+<p>Scoring rules:</p>
+<ul>
+<li>Scores run <strong>1 to 5</strong>. <strong>Official</strong> scores can also use <strong>0</strong> (the dashed button) for a real disaster; public scores can't.</li>
+<li>All 0s, all 1s or all 5s isn't allowed.</li>
+<li>Each runner gets one official score per race per year. A second one for the same runner is blocked.</li>
+<li><strong>Performance</strong> is how the runner did on the day.</li>
+</ul>
+<h3>Reviewing public scores</h3>
+<p>Scores from the public wait in the <strong>Review queue</strong> until an admin decides. The tab shows how many are waiting, e.g. <strong>Review queue (3)</strong>.</p>
+<p>Each entry shows the race, year, runner's name, every score and note, and any warnings. A warning appears when two or more categories are 2+ points away from the official average for that race. Use your judgement; a warning isn't a reason to reject on its own.</p>
+<ul>
+<li><strong>Approve:</strong> publishes it as a verified public score.</li>
+<li><strong>Approve as official:</strong> publishes it straight into the official results.</li>
+<li><strong>Reject:</strong> type an optional note first; the runner sees it under My submissions.</li>
+<li><strong>Delete:</strong> removes it completely (tap twice to confirm).</li>
+</ul>
+<p>A score marked <strong>New race</strong> came with a race that isn't on the site yet. Its <strong>Approve</strong> button stays grey until you add or link the race in <strong>Manage races</strong>; the score then comes back to the queue.</p>
+<h3>Managing races</h3>
+<p>Only admins can add or change races, so every race has one standard name. Everything happens in <strong>Manage races</strong>.</p>
+<p><strong>Naming rules</strong></p>
+<ul>
+<li>Use the organisers' name <strong>without the year or headline sponsor</strong>: "London Marathon", not "TCS London Marathon 2026".</li>
+<li>Put sponsor names, other languages and old names in <strong>Also known as</strong>, so searches still find the race.</li>
+<li>Each distance is its own race (the 10K and the Half are separate).</li>
+<li>Same name at the same place but run by different companies? Fill in <strong>Organiser</strong> so they stay separate.</li>
+</ul>
+<p><strong>Race suggestions</strong> (shown at the top when the public has added a race with their score):</p>
+<ul>
+<li><strong>Add as a new race:</strong> fills in the form below. Tidy the name, then tap <strong>Add race</strong>.</li>
+<li><strong>It's this existing race:</strong> pick the matching race from the dropdown if it's a duplicate.</li>
+<li><strong>Dismiss:</strong> removes the suggestion and any scores attached to it.</li>
+</ul>
+<p><strong>Adding a race:</strong> fill in the name, distance, town, country and anything optional, then tap <strong>Add race</strong>. If the name looks like an existing race, a warning lists the matches first.</p>
+<p><strong>All races</strong> list, for each race:</p>
+<ul>
+<li><strong>Edit:</strong> change any detail, including the name and "also known as".</li>
+<li><strong>Merge:</strong> if a race was added twice, merge the duplicate into the right one. Its scores move across and its name is kept as "also known as".</li>
+<li><strong>Delete:</strong> removes the race <strong>and all its scores</strong> (tap twice to confirm).</li>
+</ul>
+<h3>Managing results</h3>
+<p><strong>Manage results</strong> lists every published or rejected score, newest first, so you can check recent activity or fix mistakes.</p>
+<ul>
+<li><strong>When:</strong> show scores <strong>since my last visit</strong>, the last 7 or 30 days, or all time.</li>
+<li><strong>Search</strong> by race or runner's name, and switch between <strong>Published</strong>, <strong>Rejected</strong> or both.</li>
+<li><strong>Tap a result</strong> to open its details: total out of 20, radar chart, each score with its note, who ran it, and when it was submitted and published.</li>
+<li><strong>Make official / Make public</strong> moves a score between the official and public results. A score with a 0 can't be made public.</li>
+<li><strong>Delete</strong> removes a score for good (tap twice to confirm).</li>
+</ul>
+<p>To correct a score's numbers or a runner's name, ask the site owner: it's a quick fix in the database.</p>
+<h3>Staying informed</h3>
+<p>The site tells you what's new when you sign in, and can email you too.</p>
+<ul>
+<li><strong>Since your last visit:</strong> a green box at the top of the Ladder shows how many scores are waiting for review, any race suggestions, and how many scores have been published since you last looked, with links straight to each. Tap <strong>×</strong> to hide it.</li>
+<li><strong>New badges:</strong> anything that arrived since your last visit gets a green <strong>New</strong> label. "Last visit" is remembered separately on each phone or computer.</li>
+</ul>
+<p><strong>Email alerts.</strong> Tap <strong>My notifications</strong> at the bottom of the page (or <strong>Change</strong> in the green box), check your email address, tick what you want and tap <strong>Save</strong>.</p>
+<div class="guidetable"><table>
+<thead>
+<tr>
+<th>Email</th>
+<th>When</th>
+<th>What's in it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Daily review alert</td>
+<td>Every morning, only if something is waiting</td>
+<td>Scores and race suggestions waiting for review</td>
+</tr>
+<tr>
+<td>Weekly summary</td>
+<td>Fridays around noon</td>
+<td>Everything from the week, with all the notes</td>
+</tr>
+<tr>
+<td>Bug reports &amp; suggestions</td>
+<td>Within the hour, only when one arrives (off until you switch it on)</td>
+<td>Each new report from a visitor, with any contact details they left</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each admin chooses their own; the emails come from the MARMCast Gmail. Check your spam folder the first time.</p>
+<h3>Bug reports and suggestions</h3>
+<p>Everyone sees <strong>Report a bug / suggest a feature</strong> at the bottom of the page. Reports land in the <strong>Feedback</strong> tab, which only admins can see; the number beside it is how many are new.</p>
+<ul>
+<li><strong>Mark done</strong> once you've dealt with one (it moves to the Done list), or <strong>Reopen</strong> it if it comes back.</li>
+<li><strong>Delete</strong> removes it for good (tap twice).</li>
+<li>A red <strong>Check this</strong> tag means possible swearing or a web link, as in the Review queue.</li>
+<li>If the visitor left a name or email, it shows under the message, so you can reply. Bug reports also show their browser type.</li>
+<li>Each visitor can have at most 5 reports waiting, to stop floods.</li>
+</ul>
+<h3>Previewing and tips</h3>
+<p>To see the site exactly as visitors do, tap <strong>Preview as a member of the public</strong> at the bottom. A purple bar appears at the top and the admin tabs disappear; tap <strong>Exit preview</strong> to go back. Any score you submit in preview goes into the Review queue like a real public one, which is handy for testing.</p>
+<p>Quick tips:</p>
+<ul>
+<li><strong>Delete is permanent.</strong> There's no undo, so the site always asks you to tap twice.</li>
+<li><strong>Approve generously, reject with a note.</strong> Runners see your note, so a short, friendly reason helps.</li>
+<li><strong>Keep names tidy.</strong> Use the <strong>Who ran it?</strong> list for official scores, and follow the naming rules for races.</li>
+<li><strong>Keep your password private.</strong> Each admin should have their own login; don't share one.</li>
+<li><strong>Something not right?</strong> Contact the site owner. Most fixes are quick.</li>
+</ul>
+<!-- GUIDE END -->
+    </div>
+  </section>
 </main>
 
-<footer><button id="notifyLink" hidden>My notifications</button> &nbsp; <button id="previewLink" hidden>Preview as a member of the public</button> &nbsp; <button id="adminLink">Admin sign in</button></footer>
+<footer><button id="feedbackLink">Report a bug / suggest a feature</button> &nbsp; <button id="notifyLink" hidden>My notifications</button> &nbsp; <button id="previewLink" hidden>Preview as a member of the public</button> &nbsp; <button id="adminLink">Admin sign in</button></footer>
 
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
@@ -913,22 +1117,98 @@ function mergeRace(id){
   };
 }
 
+/* ---------- feedback: anyone can send, admins review ---------- */
+$("feedbackLink").onclick=()=>openFeedback();
+function openFeedback(){
+  openModal(`<h2>Report a bug or suggest a feature</h2>
+    <p class="muted">Spotted something wrong, or have an idea to make the Race Ladder better? Tell us here. Only the admins see it.</p>
+    <div class="seg" id="fbType" style="margin:4px 0 6px"><button type="button" class="on" data-k="bug">🐞 Report a bug</button><button type="button" data-k="feature">💡 Suggest a feature</button></div>
+    <label id="fbMsgLbl">What went wrong? <span class="muted">(what you did, what you expected, what happened)</span></label>
+    <textarea id="fbMsg" maxlength="1500" rows="6"></textarea>
+    <div class="muted" id="fbLeft" style="text-align:right;font-size:12px">0 / 1500</div>
+    <label>Your name or email <span class="muted">(optional, only if you’d like a reply)</span></label>
+    <input id="fbContact" maxlength="200">
+    <p class="muted" style="font-size:12px">Bug reports include your browser type, to help us fix it.</p>
+    <p><button class="btn" id="fbSend">Send</button></p>`);
+  let kind="bug";
+  $("fbType").onclick=e=>{ const b=e.target.closest("button[data-k]"); if(!b) return; kind=b.dataset.k;
+    [...$("fbType").children].forEach(x=>x.classList.toggle("on",x===b));
+    $("fbMsgLbl").innerHTML = kind==="bug" ? 'What went wrong? <span class="muted">(what you did, what you expected, what happened)</span>' : 'What’s your idea? <span class="muted">(and how it would help)</span>'; };
+  $("fbMsg").oninput=()=>$("fbLeft").textContent=`${$("fbMsg").value.length} / 1500`;
+  $("fbSend").onclick=async()=>{
+    const message=$("fbMsg").value.trim(), contact=$("fbContact").value.trim();
+    if(message.length<5) return toast("Please write a little more");
+    $("fbSend").disabled=true;
+    try{
+      await ensureSession();
+      const {error}=await S.sb.from("feedback").insert({ kind, message, contact:contact||null, browser: kind==="bug" ? navigator.userAgent.slice(0,300) : null });
+      if(error) throw error;
+      closeModal(); toast(kind==="bug" ? "Thanks! Your bug report has been sent to the admins" : "Thanks! Your suggestion has been sent to the admins");
+      if(S.isAdmin) loadAll();
+    }catch(e){ toast("Couldn't send: "+(e.message||e)); $("fbSend").disabled=false; }
+  };
+}
+function feedbackFlags(f){
+  return [...textFlags([["message",f.message]]), ...textFlags([["contact",f.contact]]).filter(x=>x.startsWith("Possible"))];
+}
+function renderFeedback(){
+  const list=S.feedback, box=$("feedbackList");
+  if(list===null){ box.innerHTML=`<p class="muted">Feedback isn’t set up yet: run <b>feedback.sql</b> in the Supabase SQL Editor.</p>`; $("fbcount").textContent=""; return; }
+  const n=list.filter(f=>f.status==="new").length;
+  $("fbcount").textContent = n?`(${n})`:"";
+  const st=$("fbStatus").value, k=$("fbKind").value;
+  const rows=list.filter(f=>(!st||f.status===st)&&(!k||f.kind===k));
+  if(!rows.length){ box.innerHTML=`<p class="muted">${st==="new"?"Nothing new. All caught up!":"Nothing here."}</p>`; return; }
+  box.innerHTML=rows.map(f=>{
+    const flags=feedbackFlags(f), t=new Date(f.created_at).getTime();
+    return `<div class="item${flags.length?" flagged":""}" data-id="${esc(f.id)}">
+      <div class="flex"><span class="pill ${f.kind==="bug"?"rejected":"pending"}">${f.kind==="bug"?"🐞 Bug":"💡 Suggestion"}</span>${f.status==="done"?`<span class="pill">Done</span>`:""}${flags.length?`<span class="pill flag">Check this</span>`:""}${isNew(t)?`<span class="pill new">New</span>`:""}<span class="muted">${esc(fmtWhen(t))}</span></div>
+      <div style="white-space:pre-wrap;margin:8px 0">${esc(f.message)}</div>
+      ${f.contact?`<div class="muted">From: ${esc(f.contact)}</div>`:`<div class="muted">No contact details left</div>`}
+      ${f.browser?`<div class="muted" style="font-size:12px">Browser: ${esc(f.browser)}</div>`:""}
+      ${flags.map(x=>`<div class="flagline">✕ ${esc(x)}</div>`).join("")}
+      <div class="flex" style="margin-top:8px">
+        <button class="btn sm" data-fbdone="${f.status==="done"?"new":"done"}">${f.status==="done"?"Reopen":"Mark done"}</button>
+        <button class="btn ghost sm" data-fbdel>Delete</button>
+      </div></div>`;
+  }).join("");
+}
+["fbStatus","fbKind"].forEach(id=>$(id).addEventListener("input",renderFeedback));
+$("feedbackList").addEventListener("click",async e=>{
+  const item=e.target.closest(".item"); if(!item) return; const id=item.dataset.id;
+  const d=e.target.closest("[data-fbdone]"), x=e.target.closest("[data-fbdel]");
+  if(d){
+    const status=d.dataset.fbdone, done=status==="done";
+    d.disabled=true;
+    const {error}=await S.sb.from("feedback").update({status, handled_by:done?uid():null, handled_at:done?new Date().toISOString():null}).eq("id",id);
+    if(error){ d.disabled=false; return toast("Couldn't update: "+error.message); }
+    const f=S.feedback.find(f=>f.id===id); if(f) f.status=status;
+    toast(done?"Marked as done":"Reopened"); renderFeedback();
+  } else if(x){
+    if(!confirmTap(x,"Tap again to delete")) return;
+    const {error}=await S.sb.from("feedback").delete().eq("id",id);
+    if(error) return toast("Couldn't delete: "+error.message);
+    S.feedback=S.feedback.filter(f=>f.id!==id); toast("Deleted"); renderFeedback();
+  }
+});
+
 /* ---------- admin: my email notifications ---------- */
 $("notifyLink").onclick=()=>openNotify();
 function openNotify(){
-  const p=S.prefs||{email:S.session?.user?.email||"", daily:true, weekly:true};
+  const p=S.prefs||{email:S.session?.user?.email||"", daily:true, weekly:true, feedback:false};
   openModal(`<h2>My notifications</h2>
     <p class="muted">Choose which emails you get. These are your own settings; each admin sets theirs.</p>
     <label>Send my emails to</label><input id="nEmail" type="email" maxlength="200" value="${esc(p.email)}">
     <label class="chk"><input type="checkbox" id="nDaily" ${p.daily?"checked":""}> <span><b>Daily review alert</b><br><span class="muted">Every morning, only on days when scores or race suggestions are waiting.</span></span></label>
     <label class="chk"><input type="checkbox" id="nWeekly" ${p.weekly?"checked":""}> <span><b>Weekly summary</b><br><span class="muted">Fridays around noon: everything from the week, with all the notes.</span></span></label>
-    ${S.prefs?"":`<p class="muted">Not saved yet. Until any admin saves their choices, both emails go to the site owner’s Gmail.</p>`}
+    <label class="chk"><input type="checkbox" id="nFeedback" ${p.feedback?"checked":""}> <span><b>Bug reports &amp; suggestions</b><br><span class="muted">Within the hour, whenever a visitor uses “Report a bug / suggest a feature”.</span></span></label>
+    ${S.prefs?"":`<p class="muted">Not saved yet. Until any admin saves their choices, all these emails go to the site owner’s Gmail.</p>`}
     <p><button class="btn" id="nSave">Save</button></p>`);
   $("nSave").onclick=async()=>{
     const email=$("nEmail").value.trim();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Enter a valid email address");
     $("nSave").disabled=true;
-    const row={user_id:uid(), email, daily:$("nDaily").checked, weekly:$("nWeekly").checked, updated_at:new Date().toISOString()};
+    const row={user_id:uid(), email, daily:$("nDaily").checked, weekly:$("nWeekly").checked, feedback:$("nFeedback").checked, updated_at:new Date().toISOString()};
     const {error}=await S.sb.from("admin_prefs").upsert(row,{onConflict:"user_id"});
     $("nSave").disabled=false;
     if(error) return toast("Couldn't save: "+error.message);
@@ -1111,7 +1391,7 @@ function render(){
   $("notifyLink").hidden = !S.realAdmin || !!S.preview;
   $("adminLink").textContent = S.realAdmin ? "Sign out (admin)" : "Admin sign in";
   renderTable(); renderChecks(); renderMine();
-  if(S.isAdmin){ renderQueue(); renderRequests(); renderRaceAdmin(); renderResults(); }
+  if(S.isAdmin){ renderQueue(); renderRequests(); renderRaceAdmin(); renderResults(); renderFeedback(); }
   renderSummary();
 }
 
@@ -1134,9 +1414,11 @@ async function loadAll(){
       S.sb.from("race_requests").select("*").order("created_at")
     ]);
     S.queue=qq.data||[]; S.adminAll=aa.data||[]; S.requests=rq.data||[];
+    const fb=await S.sb.from("feedback").select("*").order("created_at",{ascending:false}).limit(500);
+    S.feedback=fb.error?null:(fb.data||[]);   // null = feedback.sql not run yet
     if(S.prefs===undefined){ const {data}=await S.sb.from("admin_prefs").select("*").eq("user_id",uid()).maybeSingle(); S.prefs=data||null; }
     markVisit();
-  } else { S.queue=[]; S.adminAll=[]; S.requests=[]; }
+  } else { S.queue=[]; S.adminAll=[]; S.requests=[]; S.feedback=[]; }
   render();
 }
 (async()=>{
