@@ -2,6 +2,7 @@
 
   python3 weekly_digest.py           -> weekly summary   (weekly-summary.yml, Fridays)
   python3 weekly_digest.py daily     -> daily review alert (daily-alert.yml, every morning; only sends if something is waiting)
+  python3 weekly_digest.py feedback  -> bug reports & suggestions (feedback-alert.yml, hourly; only sends if something new arrived)
 
 Each admin chooses which emails they get on the site (footer > My notifications).
 If no admin has saved their choices yet, both emails go to SUMMARY_TO, or else GMAIL_ADDRESS.
@@ -28,6 +29,18 @@ def fetch(path, params):
         except Exception: why = ""
         sys.exit(f"Supabase refused the request for {path}: HTTP {e.code}. {why}\n"
                  "401 = wrong key (use the sb_secret_ key). 403 'permission denied' = run the service_role grant lines from schema.sql.")
+
+def mark_emailed(ids):
+    """Record that these feedback items have been emailed, so they're only sent once."""
+    url = (os.environ["SUPABASE_URL"].rstrip("/").removesuffix("/rest/v1") + "/rest/v1/feedback?"
+           + urllib.parse.urlencode({"id": "in.(" + ",".join(ids) + ")"}, safe="(),."))
+    body = json.dumps({"emailed_at": datetime.now(timezone.utc).isoformat()}).encode()
+    req = urllib.request.Request(url, data=body, method="PATCH", headers={
+        "apikey": os.environ["SUPABASE_SECRET_KEY"], "Content-Type": "application/json", "Prefer": "return=minimal"})
+    try:
+        urllib.request.urlopen(req, timeout=30).close()
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Couldn't mark feedback as emailed: HTTP {e.code}. 403 = run feedback.sql (it adds the service_role grant).")
 
 def esc(x): return html.escape(str(x if x is not None else ""))
 
@@ -89,7 +102,8 @@ def build(scores, races, requests, site, since):
 def recipients(kind):
     """Admins who switched this email on. Falls back to SUMMARY_TO / GMAIL_ADDRESS if nobody has saved choices yet."""
     admins = {a["user_id"] for a in fetch("admins", {"select": "user_id"})}
-    prefs = [p for p in fetch("admin_prefs", {"select": "user_id,email,daily,weekly"}) if p["user_id"] in admins]
+    cols = "user_id,email,daily,weekly" + (",feedback" if kind == "feedback" else "")
+    prefs = [p for p in fetch("admin_prefs", {"select": cols}) if p["user_id"] in admins]
     if prefs:
         return sorted({p["email"] for p in prefs if p.get(kind)})
     fallback = os.environ.get("SUMMARY_TO") or os.environ.get("GMAIL_ADDRESS") or ""
@@ -113,6 +127,29 @@ def build_daily(pending, requests, site):
                  '<p style="color:#888;font-size:12px">You get this because the daily alert is switched on in My notifications on the site.</p></div>')
     return f"MARMCast: {len(pending)} score(s) to review, {len(requests)} race suggestion(s)", "".join(parts)
 
+def build_feedback(items, site):
+    def card(f):
+        bug = f.get("kind") == "bug"
+        tag = ('<span style="background:#fee2e2;color:#991b1b;border-radius:10px;padding:1px 8px;font-size:12px">Bug</span>' if bug
+               else '<span style="background:#fef3c7;color:#92400e;border-radius:10px;padding:1px 8px;font-size:12px">Suggestion</span>')
+        contact = esc(f.get("contact")) if f.get("contact") else '<span style="color:#888">No contact details left</span>'
+        browser = f'<div style="color:#888;font-size:12px;margin-top:4px">Browser: {esc(f.get("browser"))}</div>' if f.get("browser") else ""
+        return (f'<div style="border:1px solid #ddd;border-left:4px solid {"#ef4444" if bug else "#5ddb56"};border-radius:8px;padding:10px 12px;margin:10px 0">'
+                f'<div>{tag} <span style="color:#555;font-size:13px">sent {when(f.get("created_at"))}</span></div>'
+                f'<div style="white-space:pre-wrap;margin:8px 0;font-size:15px">{esc(f.get("message"))}</div>'
+                f'<div style="color:#444;font-size:13px">From: {contact}</div>{browser}</div>')
+    bugs = sum(1 for f in items if f.get("kind") == "bug"); ideas = len(items) - bugs
+    parts = [
+        '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto;color:#111">',
+        '<div style="background:#000;color:#fff;padding:14px 16px;border-radius:10px"><div style="font-size:20px;font-weight:900">MARMCAST <span style="color:#5ddb56">RACE LADDER</span></div>'
+        '<div style="color:#ccc;font-size:13px">New bug reports &amp; suggestions</div></div>',
+        f'<p style="font-size:15px"><b>{bugs}</b> bug report(s) and <b>{ideas}</b> suggestion(s) from visitors.</p>',
+        "".join(card(f) for f in items),
+        f'<p style="margin-top:20px"><a href="{esc(site)}" style="background:#5ddb56;color:#061006;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold">Open the Feedback tab</a></p>'
+        '<p style="color:#888;font-size:12px">You get this because “Bug reports &amp; suggestions” is switched on in My notifications on the site.</p></div>']
+    what = " and ".join(x for x in [f"{bugs} bug report(s)" if bugs else "", f"{ideas} suggestion(s)" if ideas else ""] if x)
+    return f"MARMCast: {what}", "".join(parts)
+
 def send(to, subject, body):
     sender = os.environ["GMAIL_ADDRESS"]
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as s:
@@ -125,7 +162,7 @@ def send(to, subject, body):
 
 def main():
     mode = (sys.argv[1] if len(sys.argv) > 1 else "weekly").lower()
-    kind = "daily" if mode == "daily" else "weekly"
+    kind = mode if mode in ("daily", "feedback") else "weekly"
     need = ("SUPABASE_URL", "SUPABASE_SECRET_KEY") + (() if os.environ.get("DRY_RUN") else ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD"))
     missing = [k for k in need if not os.environ.get(k)]
     if missing:
@@ -133,7 +170,14 @@ def main():
     site = os.environ.get("SITE", "")
     sel = "*,races(name,city,country,distance,organiser),race_requests(name,city,country,distance,organiser)"
 
-    if kind == "daily":
+    feedback_ids = []
+    if kind == "feedback":
+        items = fetch("feedback", {"select": "id,kind,message,contact,browser,created_at", "emailed_at": "is.null", "order": "created_at.asc"})
+        if not items:
+            print("No new bug reports or suggestions, so no email."); return
+        feedback_ids = [f["id"] for f in items]
+        subject, body = build_feedback(items, site)
+    elif kind == "daily":
         pending = fetch("scores", {"select": sel, "status": "eq.pending", "order": "created_at.asc"})
         requests = fetch("race_requests", {"select": "name,city,country,distance,organiser,created_at", "order": "created_at.asc"})
         if not pending and not requests:
@@ -151,9 +195,12 @@ def main():
     if os.environ.get("DRY_RUN"):
         open(f"{kind}_preview.html", "w").write(body); print(f"Dry run: wrote {kind}_preview.html for {len(to)} recipient(s)"); return
     if not to:
-        print(f"No admin has the {kind} email switched on, so nothing was sent."); return
-    send(to, subject, body)
-    print(f"{kind.capitalize()} email sent to {len(to)} admin(s).")
+        print(f"No admin has the {kind} email switched on, so nothing was sent.")
+    else:
+        send(to, subject, body)
+        print(f"{kind.capitalize()} email sent to {len(to)} admin(s).")
+    if feedback_ids:   # never email the same report twice (they stay on the site's Feedback tab)
+        mark_emailed(feedback_ids)
 
 if __name__ == "__main__":
     main()
