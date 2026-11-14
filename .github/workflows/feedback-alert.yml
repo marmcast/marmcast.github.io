@@ -1,0 +1,31 @@
+# Emails admins (privately, via Gmail) when a visitor sends a bug report or suggestion.
+# Checks every hour and only sends when something new has arrived; each report is emailed once.
+# Each admin switches it on or off on the site: footer > My notifications > Bug reports & suggestions.
+# Uses the same secrets as the other emails: SUPABASE_URL, SUPABASE_SECRET_KEY, GMAIL_ADDRESS, GMAIL_APP_PASSWORD.
+name: Feedback alert
+
+on:
+  schedule:
+    - cron: "23 * * * *"    # every hour, at 23 minutes past
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Email admins about new bug reports and suggestions
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          SUMMARY_TO: ${{ secrets.SUMMARY_TO }}
+          SITE: https://${{ github.repository_owner }}.github.io
+        run: |
+          script=$(find . -name 'weekly_digest*.py' -not -path './.git/*' | head -1)
+          if [ -z "$script" ]; then
+            echo "Can't find weekly_digest.py in the repository. Add it as .github/scripts/weekly_digest.py (see README)."
+            exit 1
+          fi
+          python3 "$script" feedback
